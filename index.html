@@ -174,7 +174,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p10';
+const APP_VER='V1.0',PATCH='p11';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -653,9 +653,9 @@ async function abschliessen(bid){
   const now=new Date();
   const dateStr=(b.datum||td()).replace(/-/g,'');
   const timeStr=now.toTimeString().slice(0,5).replace(':','');
-  let nr=1;
-  for(const f of(b.feststellungen||[])){
-    // Fotos aus IDB lesen (neue Methode) oder direkt aus foto_data (Migration)
+  // Foto-Dateiname: S{festIdx}_F{fotoNr} — Feststellungs-Zuordnung bleibt erhalten
+  for(let fi=0;fi<(b.feststellungen||[]).length;fi++){
+    const f=b.feststellungen[fi];
     const fotoSrcs=[];
     if(f.foto_ids&&f.foto_ids.length){
       for(const fid of f.foto_ids){
@@ -664,10 +664,14 @@ async function abschliessen(bid){
     } else if(f.foto_data){
       fotoSrcs.push(...f.foto_data);
     }
+    let fotoNr=1;
     for(const dataUrl of fotoSrcs){
       const base64=dataUrl.split(',')[1];
-      fotos.file(`${dateStr}_${timeStr}_F${String(nr).padStart(2,'0')}.jpg`,base64,{base64:true});
-      nr++;
+      // Format: JJJJMMTT_HHMM_S01_F01.jpg (S=Feststellung, F=Foto innerhalb)
+      const sIdx=String(fi+1).padStart(2,'0');
+      const fNr=String(fotoNr).padStart(2,'0');
+      fotos.file(`${dateStr}_${timeStr}_S${sIdx}_F${fNr}.jpg`,base64,{base64:true});
+      fotoNr++;
     }
   }
   const blob=await zip.generateAsync({type:'blob'});
