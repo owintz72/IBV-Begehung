@@ -122,10 +122,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <!-- EINSTELLUNGEN -->
     <div class="view" id="view-einst">
       <div class="card" id="card-icloud">
-        <h3>ZIP-Ablage (iCloud)</h3>
-        <div class="hint">Einmalig den iCloud-Ordner für fertige Begehungs-ZIPs wählen. Beim Abschließen wird die ZIP automatisch dort abgelegt.</div>
-        <div id="icloud-status" style="font-size:13px;color:var(--tx2);margin-bottom:10px">Kein Ordner gewählt</div>
-        <button class="btn bp blg" id="btn-icloud-ordner" onclick="selectICloudOrdner()">📁 iCloud-Ablageordner wählen</button>
+        <h3>ZIP-Ablage</h3>
+        <div id="icloud-hint" class="hint">Auf iOS: ZIP wird über das Share Sheet geteilt → „In Dateien sichern" → iCloud Drive Ordner wählen.</div>
+        <div id="icloud-status" style="font-size:13px;color:var(--tx2);margin-bottom:10px"></div>
+        <button class="btn bp blg" id="btn-icloud-ordner" onclick="selectICloudOrdner()" style="display:none">📁 Ablageordner wählen (Desktop)</button>
       </div>
       <div class="card">
         <h3>Manuell importieren</h3>
@@ -174,7 +174,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p09';
+const APP_VER='V1.0',PATCH='p10';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -674,23 +674,25 @@ async function abschliessen(bid){
   const uhrZip=(b.uhrzeit||timeStr).replace(':','');
   const ktZip=slugifyMob((b.e2_such_id||'')+'_'+(b.proj_kurztext||''));
   const fn=`${dateStr}_${uhrZip}_${ktZip}_begehung.zip`;
-  // Primär: in iCloud-Ordner schreiben
-  const iclHandle=await getHandle('icloud_ablage');
-  if(iclHandle){
-    try{
-      const perm=await iclHandle.queryPermission({mode:'readwrite'});
-      const ok=perm==='granted'||(perm==='prompt'&&await iclHandle.requestPermission({mode:'readwrite'})==='granted');
-      if(ok){
-        const fh=await iclHandle.getFileHandle(fn,{create:true});
-        const w=await fh.createWritable();
-        await w.write(blob);await w.close();
-        b._done=true;saveD();renderUe();nav('ue');
-        toast('✓ ZIP abgelegt: '+fn);
-        return;
-      }
-    }catch(e){console.warn('iCloud-Ablage fehlgeschlagen:',e.message);}
+  // Desktop: in konfigurierten Ordner schreiben
+  if(window.showDirectoryPicker){
+    const iclHandle=await getHandle('icloud_ablage').catch(()=>null);
+    if(iclHandle){
+      try{
+        const perm=await iclHandle.queryPermission({mode:'readwrite'});
+        const ok=perm==='granted'||(perm==='prompt'&&await iclHandle.requestPermission({mode:'readwrite'})==='granted');
+        if(ok){
+          const fh=await iclHandle.getFileHandle(fn,{create:true});
+          const w=await fh.createWritable();
+          await w.write(blob);await w.close();
+          b._done=true;saveD();renderUe();nav('ue');
+          toast('✓ ZIP abgelegt: '+fn);
+          return;
+        }
+      }catch(e){console.warn('Ablage fehlgeschlagen:',e.message);}
+    }
   }
-  // Fallback: Share Sheet (iOS) oder Download
+  // iOS: Share Sheet (nativer Weg – „In Dateien sichern" → iCloud)
   if(navigator.share&&navigator.canShare){
     try{
       const file=new File([blob],fn,{type:'application/zip'});
@@ -883,7 +885,14 @@ function importCfgManual(inp){
 // ═══════════════════════════════════════════
 function renderEinst(){
   const ics=ge('icloud-status');
-  if(ics)ics.textContent=DATA.settings.icloud_name?'✓ '+DATA.settings.icloud_name:'Kein Ordner gewählt';
+  const hasDP=!!window.showDirectoryPicker;
+  const iclBtn=ge('btn-icloud-ordner');
+  const iclHint=ge('icloud-hint');
+  if(iclBtn)iclBtn.style.display=hasDP?'':'none';
+  if(iclHint)iclHint.textContent=hasDP
+    ?'Einmalig Ordner wählen – ZIP wird beim Abschließen automatisch dort abgelegt.'
+    :'iOS: ZIP wird über das Share Sheet geteilt → „In Dateien sichern" → iCloud Drive Ordner wählen.';
+  if(ics)ics.textContent=DATA.settings.icloud_name?'✓ Ordner: '+DATA.settings.icloud_name:'';
   const info=ge('einst-info');
   if(info){
     const begs=(DATA.begehungen||[]).filter(b=>!b._done).length;
