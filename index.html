@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="IBV Begehung Mobil">
+<meta name="theme-color" content="#2e2b42">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>IBV Begehung Mobil V1.0</title>
+<style>
+:root{
+  --bg:#f0eff8;--sf:#fafaf9;--sf2:#eeedf5;--bd:#d8d6e8;
+  --tx:#3d3a52;--tx2:#8a87a0;--ac:#7b6fa8;--ac2:#9b8fc8;
+  --warn:#d4886a;--ok:#6fa88a;--red:#c87a7a;
+  --sb:#2e2b42;
+  --sab:env(safe-area-inset-bottom,0px);
+  --sat:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.5;overflow:hidden;height:100dvh;}
+.h{display:none!important;}
+/* App layout */
+#app{display:flex;flex-direction:column;height:100dvh;}
+#hd{background:var(--sb);color:#e8e6f0;padding:calc(var(--sat) + 10px) 16px 10px;display:flex;align-items:center;gap:10px;min-height:calc(var(--sat) + 48px);}
+#hd h1{font-size:15px;font-weight:600;flex:1;}
+#hd .ver{font-size:10px;background:var(--ac);color:#fff;padding:1px 6px;border-radius:3px;}
+#ct{flex:1;overflow-y:auto;padding:12px 14px 16px;-webkit-overflow-scrolling:touch;}
+#bn{background:var(--sb);padding:6px 0 calc(6px + var(--sab));display:flex;border-top:1px solid rgba(255,255,255,.08);}
+.bni{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 0;cursor:pointer;color:#8880a8;font-size:10px;background:none;border:none;-webkit-appearance:none;}
+.bni.on{color:#c8bef0;}
+.bni-ic{font-size:22px;}
+.view{display:none;}.view.on{display:block;}
+/* Cards */
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:14px 16px;margin-bottom:12px;}
+.card h3{font-size:14px;font-weight:600;margin-bottom:10px;}
+/* Forms */
+.fg{margin-bottom:12px;}
+.fg label{display:block;font-size:11px;color:var(--tx2);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em;}
+.fg input,.fg select,.fg textarea{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;font-family:inherit;font-size:15px;background:#fff;color:var(--tx);-webkit-appearance:none;appearance:none;}
+.fg select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a87a0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--ac2);}
+.fg textarea{resize:none;min-height:72px;}
+.fg .sub{font-size:11px;color:var(--tx2);margin-top:3px;}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 18px;border-radius:8px;font-size:15px;font-family:inherit;cursor:pointer;border:none;font-weight:500;transition:opacity .15s;-webkit-appearance:none;}
+.btn:active{opacity:.75;}
+.bp{background:var(--ac);color:#fff;}
+.bs{background:var(--sf2);color:var(--tx);border:1px solid var(--bd);}
+.bok{background:var(--ok);color:#fff;}
+.bd2{background:var(--red);color:#fff;}
+.blg{width:100%;margin-top:8px;}
+/* Begehung list */
+.bi{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color .15s;}
+.bi:active{border-color:var(--ac2);}
+.bdb{text-align:center;min-width:38px;}
+.bdd{font-size:22px;font-weight:700;color:var(--ac);line-height:1;}
+.bdm{font-size:10px;color:var(--tx2);}
+.bif{flex:1;min-width:0;}
+.bt{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bs2{font-size:12px;color:var(--tx2);}
+.bag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;}
+.bo{background:#e8e4f8;color:#7b6fa8;}.be{background:#d4e8d4;color:#3a6040;}
+/* Feststellung cards */
+.fi{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:8px;}
+.fh{display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;}
+.fnr{font-size:12px;color:var(--tx2);font-variant-numeric:tabular-nums;}
+.kb{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;background:var(--sf2);color:var(--tx2);}
+/* Foto grid */
+.pg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;}
+.pc{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;border:1px solid var(--bd);}
+.pc img{width:100%;height:100%;object-fit:cover;display:block;}
+.pd{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;}
+.pa-btn{aspect-ratio:1;border-radius:6px;border:2px dashed var(--bd);background:var(--sf2);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--tx2);font-size:10px;-webkit-appearance:none;width:100%;}
+/* Toast */
+.tst{position:fixed;bottom:calc(60px + var(--sab) + 10px);left:50%;transform:translateX(-50%);background:#3d3a52;color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999;pointer-events:none;white-space:nowrap;max-width:90vw;}
+/* Lade-Overlay */
+.loader{position:fixed;inset:0;background:var(--sb);z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#e8e6f0;}
+.loader h2{font-size:17px;}
+.loader p{font-size:13px;color:#8880a8;text-align:center;padding:0 32px;}
+.spin{width:32px;height:32px;border:3px solid rgba(255,255,255,.2);border-top-color:#9b8fc8;border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Hint */
+.hint{background:#f4f2fc;border:1px solid var(--bd);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--tx2);margin-bottom:12px;}
+.hint b{color:var(--ac);}
+/* Modal */
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:8000;display:flex;align-items:flex-end;}
+.mo-box{background:var(--sf);border-radius:16px 16px 0 0;padding:20px 16px calc(20px + var(--sab));width:100%;max-height:90dvh;overflow-y:auto;}
+.mo-title{font-size:16px;font-weight:600;margin-bottom:16px;}
+/* Fortschrittsbalken */
+.prog{height:4px;background:var(--sf2);border-radius:2px;margin-bottom:16px;}
+.prog-bar{height:100%;background:var(--ac);border-radius:2px;transition:width .3s;}
+</style>
+</head>
+<body>
+
+<!-- LADE-OVERLAY -->
+<div class="loader" id="loader">
+  <div class="spin"></div>
+  <h2>IBV Begehung Mobil</h2>
+  <p id="loader-msg">Initialisierung…</p>
+</div>
+
+<div id="app" class="h">
+
+  <!-- HEADER -->
+  <div id="hd">
+    <span id="hd-back" class="h" onclick="goBack()" style="cursor:pointer;color:#9b8fc8;font-size:20px;padding-right:4px">‹</span>
+    <h1 id="hd-title">IBV Begehung Mobil</h1>
+    <span class="ver" id="vb">V1.0 p01</span>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="ct">
+
+    <!-- ÜBERSICHT -->
+    <div class="view on" id="view-ue"></div>
+
+    <!-- BEGEHUNG DETAIL -->
+    <div class="view" id="view-det"></div>
+
+    <!-- EINSTELLUNGEN -->
+    <div class="view" id="view-einst">
+      <div class="card" id="card-ordner">
+        <h3>Cloud-Ordner</h3>
+        <div class="hint" id="hint-ordner">Einmalig den lokalen OneDrive-Ordner auswählen — App liest beim Start automatisch alle offenen Begehungen und die Konfiguration.</div>
+        <div class="fg" id="fg-beg-ordner">
+          <label>Ordner: offene Begehungen</label>
+          <div id="od-beg-status" style="font-size:13px;color:var(--tx2);margin-bottom:8px">Kein Ordner gewählt</div>
+          <button class="btn bp blg" onclick="selectODOrdner('beg')">📁 Begehungen-Ordner wählen</button>
+        </div>
+        <div class="fg" style="margin-top:4px" id="fg-cfg-ordner">
+          <label>Ordner: Config</label>
+          <div id="od-cfg-status" style="font-size:13px;color:var(--tx2);margin-bottom:8px">Kein Ordner gewählt</div>
+          <button class="btn bp blg" onclick="selectODOrdner('cfg')">📁 Config-Ordner wählen</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Manuell importieren</h3>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="btn bs blg" style="cursor:pointer">📂 begehung_offen.json(s) importieren<input type="file" accept=".json" multiple style="display:none" onchange="importBegManual(this)"></label>
+          <label class="btn bs blg" style="cursor:pointer">⚙️ begehung_config.json importieren<input type="file" accept=".json" style="display:none" onchange="importCfgManual(this)"></label>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Daten</h3>
+        <div id="einst-info" style="font-size:12px;color:var(--tx2);margin-bottom:10px"></div>
+        <button class="btn bd2 blg" onclick="clearAll()">🗑 Alle lokalen Daten löschen</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div id="bn">
+    <button class="bni on" data-v="ue" onclick="nav('ue')">
+      <span class="bni-ic">📋</span>Begehungen
+    </button>
+    <button class="bni" data-v="einst" onclick="nav('einst')">
+      <span class="bni-ic">⚙️</span>Einstellungen
+    </button>
+  </div>
+
+</div>
+
+<!-- FESTSTELLUNG MODAL -->
+<div class="mo h" id="mf">
+  <div class="mo-box">
+    <div class="mo-title" id="mf-title">Feststellung erfassen</div>
+    <div class="prog"><div class="prog-bar" id="mf-prog" style="width:0%"></div></div>
+    <div id="mf-content"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn bs" style="flex:1" onclick="closeMF()">Abbrechen</button>
+      <button class="btn bp" style="flex:2" id="mf-save-btn" onclick="saveFest()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="foto-inp-hidden" accept="image/*" capture="environment" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="handleFotoInput(this)">
+<script>
+// ═══════════════════════════════════════════
+// KONSTANTEN
+// ═══════════════════════════════════════════
+const APP_VER='V1.0',PATCH='p06';
+const SK='ibv_bp_mobile_v1';
+const IDB_NAME='ibv_bp_mobile_handles';
+const IDB_STORE='handles';
+const IDB_FOTO_STORE='fotos';
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let DATA=null;   // {begehungen:[], konfig:{}, settings:{}}
+let CFG=null;    // aktive Konfiguration
+let pPics=[];    // aktuelle Fotos im Modal
+let cBegId=null; // aktive Begehung
+let cFestIdx=null; // zu bearbeitende Feststellung (null=neu)
+
+// ═══════════════════════════════════════════
+// HILFSFUNKTIONEN
+// ═══════════════════════════════════════════
+const ge=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const td=()=>new Date().toISOString().slice(0,10);
+const fD=s=>{if(!s)return'–';try{return new Date(s+'T00:00:00').toLocaleDateString('de-DE');}catch(e){return s;}};
+const fDT=s=>{if(!s)return'–';try{return new Date(s).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return s;}};
+function uid(p){return p+'_'+(Date.now().toString(36))+'_'+(Math.random().toString(36).slice(2,6));}
+function toast(m){
+  document.querySelectorAll('.tst').forEach(t=>t.remove());
+  const t=document.createElement('div');t.className='tst';t.textContent=m;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),2800);
+}
+
+// ═══════════════════════════════════════════
+// DATENHALTUNG
+// ═══════════════════════════════════════════
+function loadD(){
+  try{const r=localStorage.getItem(SK);DATA=r?JSON.parse(r):{begehungen:[],konfig:null,settings:{}};}
+  catch(e){DATA={begehungen:[],konfig:null,settings:{}};}
+  if(!DATA.settings)DATA.settings={};
+  if(!DATA.begehungen)DATA.begehungen=[];
+  CFG=DATA.konfig||dfltCfg();
+}
+function saveD(){
+  DATA._sv=new Date().toISOString();
+  try{localStorage.setItem(SK,JSON.stringify(DATA));}
+  catch(e){if(e.name==='QuotaExceededError')alert('Speicher voll – ZIP exportieren und Daten löschen.');}
+}
+function dfltCfg(){
+  return{
+    feststellungsarten:[{id:'FA1',name:'Dokumentation'},{id:'FA2',name:'Restarbeiten'},{id:'FA3',name:'Mangel'}],
+    bauwerke:[
+      {id:'BW1',name:'Brücke',bt:['Überbau','Widerlager','Pfeiler','Lager','Fahrbahnbelag']},
+      {id:'BW2',name:'Tunnel',bt:['Sohlgewölbe','Ulme','Firstgewölbe','Portalbauwerk']},
+      {id:'BW3',name:'Stützmauer',bt:['Wandscheibe','Fundament','Entwässerung']},
+      {id:'BW4',name:'Damm / Einschnitt',bt:['Böschung','Entwässerungsgraben','Fahrbahn']},
+      {id:'BW5',name:'Lärmschutzwand',bt:['Gründung','Pfosten','Sockel','Wandelement','Abdeckung']},
+    ],
+  };
+}
+
+// ═══════════════════════════════════════════
+// INDEXEDDB HANDLES
+// ═══════════════════════════════════════════
+function openIDB(){
+  return new Promise((res,rej)=>{
+    // Timeout: falls IndexedDB blockiert (iCloud/file://) nach 2s aufgeben
+    const t=setTimeout(()=>rej(new Error('IDB timeout')),2000);
+    try{
+      const req=indexedDB.open(IDB_NAME,1);
+      req.onupgradeneeded=e=>{
+        const db=e.target.result;
+        if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE);
+        if(!db.objectStoreNames.contains(IDB_FOTO_STORE))db.createObjectStore(IDB_FOTO_STORE);
+      };
+      req.onsuccess=e=>{clearTimeout(t);res(e.target.result);};
+      req.onerror=e=>{clearTimeout(t);rej(e.target.error);};
+      req.onblocked=()=>{clearTimeout(t);rej(new Error('IDB blocked'));};
+    }catch(e){clearTimeout(t);rej(e);}
+  });
+}
+async function getHandle(key){
+  try{const db=await openIDB();return new Promise(res=>{const tx=db.transaction(IDB_STORE,'readonly');const g=tx.objectStore(IDB_STORE).get(key);g.onsuccess=()=>res(g.result||null);g.onerror=()=>res(null);});}
+  catch(e){return null;}
+}
+async function saveHandle(key,handle){
+  try{const db=await openIDB();return new Promise(res=>{const tx=db.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).put(handle,key);tx.oncomplete=()=>res();tx.onerror=()=>res();});}
+  catch(e){}
+}
+
+// ── Foto IndexedDB ──────────────────────────────────────────────────────────
+async function saveFotoIDB(id, dataUrl){
+  try{
+    const db=await openIDB();
+    return new Promise(res=>{
+      const tx=db.transaction(IDB_FOTO_STORE,'readwrite');
+      tx.objectStore(IDB_FOTO_STORE).put(dataUrl,id);
+      tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);
+    });
+  }catch(e){
+    // Fallback: in DATA.fotoCache (localStorage) speichern
+    if(!DATA.fotoCache)DATA.fotoCache={};
+    DATA.fotoCache[id]=dataUrl;
+    saveD();
+    return true;
+  }
+}
+async function getFotoIDB(id){
+  try{
+    const db=await openIDB();
+    return new Promise(res=>{
+      const tx=db.transaction(IDB_FOTO_STORE,'readonly');
+      const g=tx.objectStore(IDB_FOTO_STORE).get(id);
+      g.onsuccess=()=>res(g.result||null);g.onerror=()=>res(null);
+    });
+  }catch(e){
+    // Fallback: aus DATA.fotoCache lesen
+    return(DATA.fotoCache&&DATA.fotoCache[id])||null;
+  }
+}
+async function delFotoIDB(id){
+  try{
+    const db=await openIDB();
+    return new Promise(res=>{
+      const tx=db.transaction(IDB_FOTO_STORE,'readwrite');
+      tx.objectStore(IDB_FOTO_STORE).delete(id);
+      tx.oncomplete=()=>res();
+    });
+  }catch(e){}
+}
+async function getAllFotoIDs(){
+  try{
+    const db=await openIDB();
+    return new Promise(res=>{
+      const tx=db.transaction(IDB_FOTO_STORE,'readonly');
+      const g=tx.objectStore(IDB_FOTO_STORE).getAllKeys();
+      g.onsuccess=()=>res(g.result||[]);g.onerror=()=>res([]);
+    });
+  }catch(e){return[];}
+}
+// Bild komprimieren vor Speicherung (max 1200px, Q=0.82)
+function compressImg(dataUrl){
+  return new Promise(res=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=1200;
+      let w=img.width,h=img.height;
+      if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+      if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      res(c.toDataURL('image/jpeg',0.82));
+    };
+    img.onerror=()=>res(dataUrl);
+    img.src=dataUrl;
+  });
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+let navHistory=[];
+function nav(v,bid){
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('on'));
+  document.querySelectorAll('.bni').forEach(el=>el.classList.remove('on'));
+  const ve=ge('view-'+v);if(ve)ve.classList.add('on');
+  const ni=document.querySelector('.bni[data-v="'+v+'"]');if(ni)ni.classList.add('on');
+  ge('hd-back').classList.toggle('h',v==='ue'||v==='einst');
+  if(v==='ue'){ge('hd-title').textContent='IBV Begehung Mobil';navHistory=[];renderUe();}
+  if(v==='det'&&bid){cBegId=bid;ge('hd-title').textContent='Feststellungen';navHistory.push('ue');renderDet(bid);}
+  if(v==='einst'){ge('hd-title').textContent='Einstellungen';renderEinst();}
+}
+function goBack(){
+  const prev=navHistory.pop();
+  if(prev)nav(prev);else nav('ue');
+}
+
+// ═══════════════════════════════════════════
+// ÜBERSICHT
+// ═══════════════════════════════════════════
+function renderUe(){
+  const begs=(DATA.begehungen||[]).filter(b=>!b._done).sort((a,b)=>(a.datum||'').localeCompare(b.datum||''));
+  if(!begs.length){
+    ge('view-ue').innerHTML=`
+    <div class="hint" style="margin-top:8px">
+      <b>Keine offenen Begehungen.</b><br>
+      Einstellungen → OneDrive-Ordner wählen oder Datei manuell importieren.
+    </div>
+    <button class="btn bp blg" onclick="syncOneDrive()">🔄 Jetzt synchronisieren</button>`;
+    return;
+  }
+  let h='<button class="btn bs blg" style="margin-bottom:14px" onclick="syncOneDrive()">🔄 Synchronisieren</button>';
+  begs.forEach(b=>{
+    const dt=new Date((b.datum||td())+'T00:00:00');
+    const nF=(b.feststellungen||[]).length;
+    h+=`<div class="bi" onclick="nav('det','${b.id}')">
+      <div class="bdb">
+        <div class="bdd">${dt.getDate().toString().padStart(2,'0')}</div>
+        <div class="bdm">${dt.toLocaleDateString('de-DE',{month:'short'})}</div>
+      </div>
+      <div class="bif">
+        <div class="bt">${esc((b.e2_such_id||'–')+(b.proj_kurztext?' – '+b.proj_kurztext:''))}</div>
+        <div class="bs2">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit:''}</div>
+        <div class="bs2" style="margin-top:1px">${esc(b.ort||'Ort nicht angegeben')} · ${nF} Feststellung${nF!==1?'en':''}</div>
+      </div>
+      <span style="color:var(--tx2);font-size:20px">›</span>
+    </div>`;
+  });
+  ge('view-ue').innerHTML=h;
+}
+
+// ═══════════════════════════════════════════
+// DETAIL: BEGEHUNG
+// ═══════════════════════════════════════════
+async function renderDet(bid){
+  const b=DATA.begehungen.find(x=>x.id===bid);
+  if(!b){ge('view-det').innerHTML='<div class="hint">Nicht gefunden.</div>';return;}
+  const fests=b.feststellungen||[];
+  let h=`
+  <div class="card" style="margin-bottom:10px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px">${esc((b.e2_such_id||'–')+(b.proj_kurztext?' – '+b.proj_kurztext:''))}</div>
+    <div style="font-size:12px;color:var(--tx2)">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit+' Uhr':''}${b.ort?' · '+esc(b.ort):''}</div>
+    ${b.teilnehmer?`<div style="font-size:12px;color:var(--tx2);margin-top:2px">${esc(b.teilnehmer)}</div>`:''}
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="font-size:14px;font-weight:600">Feststellungen (${fests.length})</div>
+    <button class="btn bp" style="padding:8px 14px;font-size:13px" onclick="openMF(null,'${bid}')">＋ Neu</button>
+  </div>`;
+
+  fests.forEach((f,i)=>{
+    h+=`<div class="fi">
+      <div class="fh">
+        <span class="fnr">#${f.lfd_nr||i+1}</span>
+        ${f.festst_name?`<span class="kb">${esc(f.festst_name)}</span>`:''}
+        ${(f.bw_freitext||f.bw_name)?`<span class="kb">${esc(f.bw_freitext||f.bw_name||'')}${(f.bt_freitext||f.bauteil)?' / '+esc(f.bt_freitext||f.bauteil):''}</span>`:''}
+      </div>
+      ${f.lage_text?`<div style="font-size:12px;color:var(--tx2)">📍 ${esc(f.lage_text)}</div>`:''}
+      ${f.beschreibung?`<div style="font-size:13px;margin-top:3px">${esc(f.beschreibung)}</div>`:''}
+      <div id="foto-grid-${f.id||i}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px"></div>
+      <button class="btn bs" style="width:100%;margin-top:8px;padding:7px;font-size:13px" onclick="openMF(${i},'${bid}')">✏ Bearbeiten</button>
+    </div>`;
+  });
+
+  h+=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+    <button class="btn bok blg" onclick="abschliessen('${bid}')">✓ Begehung abschließen &amp; ZIP erstellen</button>
+  </div>`;
+  ge('view-det').innerHTML=h;
+  // Fotos asynchron nachladen
+  for(const [i,f] of fests.entries()){
+    const grid=ge('foto-grid-'+(f.id||i));
+    if(!grid)continue;
+    const ids=f.foto_ids||[];
+    if(!ids.length&&f.foto_data){
+      // Migration: alte inline Daten
+      grid.innerHTML=(f.foto_data||[]).map(s=>`<div class="pc"><img src="${s}" loading="lazy"></div>`).join('');
+      continue;
+    }
+    for(const fid of ids){
+      const dataUrl=await getFotoIDB(fid);
+      if(dataUrl){
+        const d=document.createElement('div');d.className='pc';
+        const img=document.createElement('img');img.src=dataUrl;img.loading='lazy';
+        d.appendChild(img);grid.appendChild(d);
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
+// MODAL: FESTSTELLUNG
+// ═══════════════════════════════════════════
+async function openMF(idx,bid){
+  cBegId=bid;cFestIdx=idx;pPics=[];
+  const b=DATA.begehungen.find(x=>x.id===bid);
+  const f=idx!==null?JSON.parse(JSON.stringify(b.feststellungen[idx])):null;
+  if(f&&(f.foto_ids||f.foto_data)){
+    // Migration: alte foto_data direkt, neue foto_ids aus IDB
+    if(f.foto_data&&f.foto_data.length&&!f.foto_ids){
+      pPics=f.foto_data.map(d=>({id:null,dataUrl:d}));
+    } else {
+      pPics=[];
+      for(const fid of(f.foto_ids||[])){
+        const dataUrl=fid?await getFotoIDB(fid):null;
+        if(dataUrl)pPics.push({id:fid,dataUrl});
+      }
+    }
+  }
+  ge('mf-title').textContent=idx!==null?'Feststellung bearbeiten':'Neue Feststellung';
+  renderMFContent(f);
+  ge('mf').classList.remove('h');
+  ge('mf-prog').style.width='0%';
+}
+function closeMF(){
+  ge('mf').classList.add('h');
+  pPics=[];
+  const inp=ge('foto-inp-hidden');
+  if(inp)inp.value=''; // reset damit Kamera erneut öffnet
+}
+
+function renderMFContent(f){
+  const bws=CFG.bauwerke||[];
+  const fas=CFG.feststellungsarten||[];
+  // Bauteile für aktuell gewähltes Bauwerk
+  const curBwId=f?f.bw_id:'';
+  const curBw=bws.find(b=>b.id===curBwId);
+  const bts=curBw?curBw.bt||[]:[];
+
+  let h='';
+  // Bauwerk
+  h+=`<div class="fg"><label>Bauwerk</label>
+    <select id="fc-bw" onchange="onBwChange()">${bws.map(b=>`<option value="${esc(b.id)}" ${b.id===curBwId?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
+    <input type="text" id="fc-bw-txt" value="${esc(f?f.bw_freitext||'':'')}" placeholder="Freitext (optional – überschreibt Auswahl)" style="margin-top:6px">
+    <div class="sub">Freitext leer → Dropdown-Wert wird verwendet</div>
+  </div>`;
+  // Bauteil
+  h+=`<div class="fg"><label>Bauteil</label>
+    <select id="fc-bt">${bts.length?bts.map(bt=>{const sel=(f&&(f.bt_freitext||f.bauteil)===bt)?'selected':'';return '<option value="'+esc(bt)+'" '+sel+'>'+esc(bt)+'</option>';}).join(''):
+    '<option value="">— Bauwerk wählen —</option>'}</select>
+    <input type="text" id="fc-bt-txt" value="${esc(f?f.bt_freitext||'':'')}" placeholder="Freitext (optional – überschreibt Auswahl)" style="margin-top:6px">
+  </div>`;
+  // Feststellungsart
+  h+=`<div class="fg"><label>Feststellungsart</label>
+    <select id="fc-fa">
+      <option value="">— wählen —</option>
+      ${fas.map(fa=>`<option value="${esc(fa.id)}" ${fa.id===(f?f.festst_id:'')? 'selected':''}>${esc(fa.name)}</option>`).join('')}
+    </select>
+  </div>`;
+  // Lage
+  h+=`<div class="fg"><label>Lage</label>
+    <input type="text" id="fc-lage" value="${esc(f?f.lage_text||'':'')}" placeholder="z.B. Achse B, Km 12+400">
+  </div>`;
+  // Fotos
+  h+=`<div class="fg"><label>Fotos (${pPics.length})</label>
+    <div class="pg" id="fc-photos">`;
+  pPics.forEach((p,i)=>{
+    h+=`<div class="pc"><img src="${p.dataUrl}"><button class="pd" onclick="delPic(${i})">✕</button></div>`;
+  });
+  h+=`<label for="foto-inp-hidden" class="pa-btn"><span style="font-size:22px">📷</span><span>Foto</span></label></div></div>`;
+  // Beschreibung
+  h+=`<div class="fg"><label>Feststellung / Beschreibung</label>
+    <textarea id="fc-desc" placeholder="Beschreibung…">${esc(f?f.beschreibung||'':'')}</textarea>
+  </div>`;
+  ge('mf-content').innerHTML=h;
+  updateBts();
+}
+
+function onBwChange(){updateBts();}
+function updateBts(){
+  const bwId=ge('fc-bw')?ge('fc-bw').value:'';
+  const bw=CFG.bauwerke.find(b=>b.id===bwId);
+  const bts=bw?bw.bt||[]:[];
+  const sel=ge('fc-bt');
+  if(!sel)return;
+  sel.innerHTML=bts.length?bts.map(bt=>`<option value="${esc(bt)}">${esc(bt)}</option>`).join(''):'<option value="">—</option>';
+}
+
+// takePic() entfernt p04 — label for= übernimmt direkt
+async function handleFotoInput(inp){
+  const file=inp.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async ev=>{
+    const compressed=await compressImg(ev.target.result);
+    const fid='foto_'+uid('F');
+    await saveFotoIDB(fid,compressed);
+    pPics.push({id:fid,dataUrl:compressed});
+    refreshPhotos();
+  };
+  reader.readAsDataURL(file);
+}
+function delPic(i){
+  const p=pPics[i];
+  if(p&&p.id)delFotoIDB(p.id);
+  pPics.splice(i,1);refreshPhotos();
+}
+function refreshPhotos(){
+  const grid=ge('fc-photos');if(!grid)return;
+  let h='';
+  pPics.forEach((p,i)=>{
+    h+=`<div class="pc"><img src="${p.dataUrl}"><button class="pd" onclick="delPic(${i})">✕</button></div>`;
+  });
+  h+=`<label for="foto-inp-hidden" class="pa-btn"><span style="font-size:22px">📷</span><span>Foto</span></label>`;
+  grid.innerHTML=h;
+  ge('mf-title').textContent=(cFestIdx!==null?'Feststellung bearbeiten':'Neue Feststellung')+` (${pPics.length} Foto${pPics.length!==1?'s':''})`;
+}
+
+function saveFest(){
+  const b=DATA.begehungen.find(x=>x.id===cBegId);if(!b)return;
+  const bwId=ge('fc-bw')?ge('fc-bw').value:'';
+  const bw=CFG.bauwerke.find(x=>x.id===bwId);
+  const bwFt=(ge('fc-bw-txt')?ge('fc-bw-txt').value.trim():'');
+  const btVal=ge('fc-bt')?ge('fc-bt').value:'';
+  const btFt=(ge('fc-bt-txt')?ge('fc-bt-txt').value.trim():'');
+  const faId=ge('fc-fa')?ge('fc-fa').value:'';
+  const fa=CFG.feststellungsarten.find(x=>x.id===faId);
+  const obj={
+    id:cFestIdx!==null?(b.feststellungen[cFestIdx].id||uid('F')):uid('F'),
+    lfd_nr:cFestIdx!==null?(b.feststellungen[cFestIdx].lfd_nr||cFestIdx+1):(b.feststellungen.length+1),
+    bw_id:bwId,
+    bw_name:bwFt||(bw?bw.name:''),
+    bw_freitext:bwFt,
+    bauteil:btFt||btVal,
+    bt_freitext:btFt,
+    festst_id:faId,
+    festst_name:fa?fa.name:'',
+    lage_text:ge('fc-lage')?ge('fc-lage').value.trim():'',
+    beschreibung:ge('fc-desc')?ge('fc-desc').value.trim():'',
+    foto_ids:pPics.map(p=>p.id||''),
+    status:'offen',
+    ts:new Date().toISOString(),
+  };
+  if(cFestIdx!==null){b.feststellungen[cFestIdx]=obj;}
+  else{b.feststellungen.push(obj);}
+  saveD();closeMF();renderDet(cBegId);
+  toast(cFestIdx!==null?'Feststellung aktualisiert':'Feststellung gespeichert');
+}
+
+// ═══════════════════════════════════════════
+// ABSCHLUSS + ZIP
+// ═══════════════════════════════════════════
+async function abschliessen(bid){
+  const b=DATA.begehungen.find(x=>x.id===bid);if(!b)return;
+  if(!window.JSZip){
+    ge('hd-title').textContent='ZIP wird erstellt…';
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  }
+  toast('ZIP wird erstellt…');
+  const zip=new JSZip();
+  // begehung.json ohne foto_data
+  const bClean=JSON.parse(JSON.stringify(b));
+  (bClean.feststellungen||[]).forEach(f=>{delete f.foto_data;});
+  zip.file('begehung.json',JSON.stringify(bClean,null,2));
+  // Fotos
+  const fotos=zip.folder('fotos');
+  const now=new Date();
+  const dateStr=(b.datum||td()).replace(/-/g,'');
+  const timeStr=now.toTimeString().slice(0,5).replace(':','');
+  let nr=1;
+  for(const f of(b.feststellungen||[])){
+    // Fotos aus IDB lesen (neue Methode) oder direkt aus foto_data (Migration)
+    const fotoSrcs=[];
+    if(f.foto_ids&&f.foto_ids.length){
+      for(const fid of f.foto_ids){
+        const d=await getFotoIDB(fid);if(d)fotoSrcs.push(d);
+      }
+    } else if(f.foto_data){
+      fotoSrcs.push(...f.foto_data);
+    }
+    for(const dataUrl of fotoSrcs){
+      const base64=dataUrl.split(',')[1];
+      fotos.file(`${dateStr}_${timeStr}_F${String(nr).padStart(2,'0')}.jpg`,base64,{base64:true});
+      nr++;
+    }
+  }
+  const blob=await zip.generateAsync({type:'blob'});
+  const fn=`${dateStr}_${(b.e2_such_id||'').replace(/[^a-z0-9_]/gi,'_')}_begehung.zip`;
+  // Share API (iOS) oder Download
+  if(navigator.share&&navigator.canShare){
+    try{
+      const file=new File([blob],fn,{type:'application/zip'});
+      if(navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],title:'Begehung '+fD(b.datum)});
+        b._done=true;saveD();renderUe();nav('ue');
+        toast('Geteilt – Begehung abgeschlossen');
+        return;
+      }
+    }catch(e){if(e.name==='AbortError')return;}
+  }
+  // Fallback: Download
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=fn;a.click();
+  URL.revokeObjectURL(url);
+  b._done=true;saveD();renderUe();nav('ue');
+  toast('ZIP heruntergeladen – Begehung abgeschlossen');
+}
+
+function loadScript(src){return new Promise((r,j)=>{const s=document.createElement('script');s.src=src;s.onload=r;s.onerror=j;document.head.appendChild(s);});}
+
+// ═══════════════════════════════════════════
+// ONEDRIVE SYNC
+// ═══════════════════════════════════════════
+async function selectODOrdner(type){
+  if(!window.showDirectoryPicker){toast('Nicht verfügbar – bitte Edge/Chrome nutzen');return;}
+  try{
+    const handle=await window.showDirectoryPicker({mode:type==='beg'?'readwrite':'read'});
+    await saveHandle('od_'+type,handle);
+    DATA.settings['od_'+type+'_name']=handle.name;
+    saveD();renderEinst();
+    toast('Ordner gespeichert: '+handle.name);
+    if(type==='beg')await syncBegehungen(handle);
+    if(type==='cfg')await syncKonfig(handle);
+  }catch(e){if(e.name!=='AbortError')toast('Fehler: '+e.message);}
+}
+
+async function syncOneDrive(){
+  loaderMsg('Synchronisiere…');
+  let geladen=0;
+  // Begehungen
+  const begHandle=await getHandle('od_beg');
+  if(begHandle){
+    try{
+      const perm=await begHandle.queryPermission({mode:'readwrite'});
+      if(perm==='granted'||(perm==='prompt'&&await begHandle.requestPermission({mode:'readwrite'})==='granted')){
+        await syncBegehungen(begHandle);geladen++;
+      }
+    }catch(e){}
+  }
+  // Konfig
+  const cfgHandle=await getHandle('od_cfg');
+  if(cfgHandle){
+    try{
+      const perm=await cfgHandle.queryPermission({mode:'read'});
+      if(perm==='granted'||(perm==='prompt'&&await cfgHandle.requestPermission({mode:'read'})==='granted')){
+        await syncKonfig(cfgHandle);geladen++;
+      }
+    }catch(e){}
+  }
+  if(!geladen)toast('Kein OneDrive-Ordner konfiguriert – bitte in Einstellungen wählen');
+  else renderUe();
+}
+
+async function syncBegehungen(dirHandle){
+  loaderMsg('Lade offene Begehungen…');
+  let count=0;
+  try{
+    for await(const [name,fh] of dirHandle.entries()){
+      if(fh.kind==='file'&&name.includes('begehung_offen')&&name.endsWith('.json')){
+        const file=await fh.getFile();
+        const text=await file.text();
+        await verarbeiteBegJSON(text,name);
+        count++;
+      }
+    }
+    toast('Begehungen: '+count+' Dateien geladen');
+  }catch(e){toast('Fehler Begehungen: '+e.message);}
+}
+
+async function syncKonfig(dirHandle){
+  try{
+    for await(const [name,fh] of dirHandle.entries()){
+      if(fh.kind==='file'&&name==='begehung_config.json'){
+        const file=await fh.getFile();
+        const text=await file.text();
+        importCfgText(text);
+        toast('Konfiguration aktualisiert');
+        return;
+      }
+    }
+    toast('begehung_config.json nicht gefunden im Config-Ordner');
+  }catch(e){toast('Fehler Konfig: '+e.message);}
+}
+
+async function verarbeiteBegJSON(text, fname){
+  try{
+    const payload=JSON.parse(text);
+    const beg=payload.begehung||payload; // unterstützt beide Formate
+    if(!beg.id)throw new Error('Kein id-Feld');
+    // Konfig aus Datei übernehmen falls noch keine vorhanden
+    if(payload.konfig&&!DATA.konfig){
+      DATA.konfig=payload.konfig;CFG=DATA.konfig;
+    }
+    // Begehung nur hinzufügen wenn noch nicht vorhanden
+    if(!DATA.begehungen.find(x=>x.id===beg.id)){
+      if(!beg.feststellungen)beg.feststellungen=[];
+      DATA.begehungen.push(beg);
+      saveD();
+    }
+  }catch(e){console.warn('Fehler in '+fname+':',e.message);}
+}
+
+function importCfgText(text){
+  try{
+    const cfg=JSON.parse(text);
+    if(cfg.bauwerke||cfg.feststellungsarten){
+      DATA.konfig=cfg;CFG=cfg;saveD();
+    }
+  }catch(e){toast('Config-Fehler: '+e.message);}
+}
+
+// Manueller Import
+function importBegManual(inp){
+  const files=Array.from(inp.files);
+  let done=0;
+  files.forEach(f=>{
+    const rd=new FileReader();
+    rd.onload=async e=>{await verarbeiteBegJSON(e.target.result,f.name);done++;if(done===files.length){saveD();renderUe();toast(done+' Datei(en) importiert');}};
+    rd.readAsText(f);
+  });
+  inp.value='';
+}
+function importCfgManual(inp){
+  const f=inp.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=e=>{importCfgText(e.target.result);toast('Konfiguration importiert');};
+  rd.readAsText(f);inp.value='';
+}
+
+// ═══════════════════════════════════════════
+// EINSTELLUNGEN
+// ═══════════════════════════════════════════
+function renderEinst(){
+  ge('od-beg-status').textContent=DATA.settings.od_beg_name?'✓ '+DATA.settings.od_beg_name:'Kein Ordner gewählt';
+  ge('od-cfg-status').textContent=DATA.settings.od_cfg_name?'✓ '+DATA.settings.od_cfg_name:'Kein Ordner gewählt';
+  const info=ge('einst-info');
+  if(info){
+    const begs=(DATA.begehungen||[]).filter(b=>!b._done).length;
+    const done=(DATA.begehungen||[]).filter(b=>b._done).length;
+    info.textContent=begs+' offene Begehungen · '+done+' abgeschlossen · Konfig: '+(DATA.konfig?'geladen':'Standard');
+  }
+}
+
+async function clearAll(){
+  if(!confirm('Alle lokalen Daten löschen?'))return;
+  localStorage.removeItem(SK);
+  // Foto-IDB leeren
+  try{
+    const db=await openIDB();
+    const tx=db.transaction(IDB_FOTO_STORE,'readwrite');
+    tx.objectStore(IDB_FOTO_STORE).clear();
+  }catch(e){}
+  loadD();renderUe();toast('Daten gelöscht');
+}
+
+// ═══════════════════════════════════════════
+// LOADER
+// ═══════════════════════════════════════════
+function loaderMsg(m){const el=ge('loader-msg');if(el)el.textContent=m;}
+function hideLoader(){
+  const l=ge('loader');if(l){l.style.opacity='0';l.style.transition='opacity .3s';setTimeout(()=>l.classList.add('h'),300);}
+  ge('app').classList.remove('h');
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+async function init(){
+  loadD();
+  ge('vb').textContent=APP_VER+' '+PATCH;
+  // iOS-Erkennung: showDirectoryPicker nicht verfügbar → Ordner-Buttons ausblenden
+  const isIOS=!window.showDirectoryPicker;
+  if(isIOS){
+    const ordnerCard=ge('card-ordner');
+    if(ordnerCard){
+      ge('hint-ordner').innerHTML='iOS: Dateien direkt über <b>Manuell importieren</b> aus iCloud Drive oder Files wählen.';
+      ge('fg-beg-ordner').style.display='none';
+      ge('fg-cfg-ordner').style.display='none';
+    }
+  }
+  // Auto-Sync nur wenn showDirectoryPicker verfügbar (Desktop)
+  const hasDirPicker=!!window.showDirectoryPicker;
+  if(hasDirPicker){
+    loaderMsg('Prüfe Export-Ordner…');
+    try{
+      const begHandle=await Promise.race([getHandle('od_beg'),new Promise(r=>setTimeout(()=>r(null),2500))]);
+      const cfgHandle=await Promise.race([getHandle('od_cfg'),new Promise(r=>setTimeout(()=>r(null),2500))]);
+      if(begHandle){
+        try{
+          const perm=await begHandle.queryPermission({mode:'readwrite'});
+          if(perm==='granted'){loaderMsg('Lade Begehungen…');await syncBegehungen(begHandle);}
+        }catch(e){}
+      }
+      if(cfgHandle){
+        try{
+          const perm=await cfgHandle.queryPermission({mode:'read'});
+          if(perm==='granted'){loaderMsg('Lade Konfiguration…');await syncKonfig(cfgHandle);}
+        }catch(e){}
+      }
+    }catch(e){/* IDB nicht verfügbar — kein Problem */}
+  }
+  hideLoader();
+  nav('ue');
+}
+init();
+</script>
+</body>
+</html>
