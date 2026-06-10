@@ -121,19 +121,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
     <!-- EINSTELLUNGEN -->
     <div class="view" id="view-einst">
-      <div class="card" id="card-ordner">
-        <h3>Cloud-Ordner</h3>
-        <div class="hint" id="hint-ordner">Einmalig den lokalen OneDrive-Ordner auswählen — App liest beim Start automatisch alle offenen Begehungen und die Konfiguration.</div>
-        <div class="fg" id="fg-beg-ordner">
-          <label>Ordner: offene Begehungen</label>
-          <div id="od-beg-status" style="font-size:13px;color:var(--tx2);margin-bottom:8px">Kein Ordner gewählt</div>
-          <button class="btn bp blg" onclick="selectODOrdner('beg')">📁 Begehungen-Ordner wählen</button>
-        </div>
-        <div class="fg" style="margin-top:4px" id="fg-cfg-ordner">
-          <label>Ordner: Config</label>
-          <div id="od-cfg-status" style="font-size:13px;color:var(--tx2);margin-bottom:8px">Kein Ordner gewählt</div>
-          <button class="btn bp blg" onclick="selectODOrdner('cfg')">📁 Config-Ordner wählen</button>
-        </div>
+      <div class="card" id="card-icloud">
+        <h3>ZIP-Ablage (iCloud)</h3>
+        <div class="hint">Einmalig den iCloud-Ordner für fertige Begehungs-ZIPs wählen. Beim Abschließen wird die ZIP automatisch dort abgelegt.</div>
+        <div id="icloud-status" style="font-size:13px;color:var(--tx2);margin-bottom:10px">Kein Ordner gewählt</div>
+        <button class="btn bp blg" id="btn-icloud-ordner" onclick="selectICloudOrdner()">📁 iCloud-Ablageordner wählen</button>
       </div>
       <div class="card">
         <h3>Manuell importieren</h3>
@@ -169,9 +161,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="mo-title" id="mf-title">Feststellung erfassen</div>
     <div class="prog"><div class="prog-bar" id="mf-prog" style="width:0%"></div></div>
     <div id="mf-content"></div>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="btn bs" style="flex:1" onclick="closeMF()">Abbrechen</button>
-      <button class="btn bp" style="flex:2" id="mf-save-btn" onclick="saveFest()">💾 Speichern</button>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn bs" style="flex:1;min-width:80px" onclick="closeMF()">Abbrechen</button>
+      <button class="btn bs" style="flex:1;min-width:80px" onclick="saveFestWeiter()">💾 + Weiter</button>
+      <button class="btn bp" style="flex:2;min-width:120px" id="mf-save-btn" onclick="saveFest()">💾 Schließen</button>
     </div>
   </div>
 </div>
@@ -181,7 +174,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p06';
+const APP_VER='V1.0',PATCH='p07';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -364,12 +357,12 @@ function renderUe(){
     ge('view-ue').innerHTML=`
     <div class="hint" style="margin-top:8px">
       <b>Keine offenen Begehungen.</b><br>
-      Einstellungen → OneDrive-Ordner wählen oder Datei manuell importieren.
+      Einstellungen → Datei manuell importieren.
     </div>
-    <button class="btn bp blg" onclick="syncOneDrive()">🔄 Jetzt synchronisieren</button>`;
+    `;
     return;
   }
-  let h='<button class="btn bs blg" style="margin-bottom:14px" onclick="syncOneDrive()">🔄 Synchronisieren</button>';
+  let h='';
   begs.forEach(b=>{
     const dt=new Date((b.datum||td())+'T00:00:00');
     const nF=(b.feststellungen||[]).length;
@@ -394,13 +387,34 @@ function renderUe(){
 // ═══════════════════════════════════════════
 async function renderDet(bid){
   const b=DATA.begehungen.find(x=>x.id===bid);
+  if(b){
+    // Datum + Uhrzeit automatisch setzen wenn noch leer
+    if(!b.datum){b.datum=td();saveD();}
+    if(!b.uhrzeit){const n=new Date();b.uhrzeit=n.getHours().toString().padStart(2,'0')+':'+n.getMinutes().toString().padStart(2,'0');saveD();}
+  }
   if(!b){ge('view-det').innerHTML='<div class="hint">Nicht gefunden.</div>';return;}
   const fests=b.feststellungen||[];
   let h=`
   <div class="card" style="margin-bottom:10px">
-    <div style="font-size:13px;font-weight:600;margin-bottom:4px">${esc((b.e2_such_id||'–')+(b.proj_kurztext?' – '+b.proj_kurztext:''))}</div>
-    <div style="font-size:12px;color:var(--tx2)">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit+' Uhr':''}${b.ort?' · '+esc(b.ort):''}</div>
-    ${b.teilnehmer?`<div style="font-size:12px;color:var(--tx2);margin-top:2px">${esc(b.teilnehmer)}</div>`:''}
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">${esc((b.e2_such_id||'–')+(b.proj_kurztext?' – '+b.proj_kurztext:''))}</div>
+    <div class="fr" style="gap:8px;margin-bottom:8px">
+      <div class="fg" style="margin-bottom:0">
+        <label style="font-size:10px;color:var(--tx2);text-transform:uppercase">Datum</label>
+        <input type="date" id="det-datum" value="${esc(b.datum||'')}" onchange="updBeg('datum',this.value)">
+      </div>
+      <div class="fg" style="margin-bottom:0">
+        <label style="font-size:10px;color:var(--tx2);text-transform:uppercase">Uhrzeit</label>
+        <input type="time" id="det-zeit" value="${esc(b.uhrzeit||'')}" onchange="updBeg('uhrzeit',this.value)">
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:8px">
+      <label style="font-size:10px;color:var(--tx2);text-transform:uppercase">Ort / Bereich</label>
+      <input type="text" id="det-ort" value="${esc(b.ort||'')}" placeholder="Ort…" onchange="updBeg('ort',this.value)">
+    </div>
+    <div class="fg" style="margin-bottom:0">
+      <label style="font-size:10px;color:var(--tx2);text-transform:uppercase">Teilnehmer</label>
+      <input type="text" id="det-tn" value="${esc(b.teilnehmer||'')}" placeholder="Teilnehmer…" onchange="updBeg('teilnehmer',this.value)">
+    </div>
   </div>
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -416,6 +430,7 @@ async function renderDet(bid){
         ${(f.bw_freitext||f.bw_name)?`<span class="kb">${esc(f.bw_freitext||f.bw_name||'')}${(f.bt_freitext||f.bauteil)?' / '+esc(f.bt_freitext||f.bauteil):''}</span>`:''}
       </div>
       ${f.lage_text?`<div style="font-size:12px;color:var(--tx2)">📍 ${esc(f.lage_text)}</div>`:''}
+      ${f.gps_lat?`<div style="font-size:11px;color:var(--tx2)">🌐 ${f.gps_lat.toFixed(6)}, ${f.gps_lng.toFixed(6)}</div>`:''}
       ${f.beschreibung?`<div style="font-size:13px;margin-top:3px">${esc(f.beschreibung)}</div>`:''}
       <div id="foto-grid-${f.id||i}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px"></div>
       <button class="btn bs" style="width:100%;margin-top:8px;padding:7px;font-size:13px" onclick="openMF(${i},'${bid}')">✏ Bearbeiten</button>
@@ -467,8 +482,11 @@ async function openMF(idx,bid){
     }
   }
   ge('mf-title').textContent=idx!==null?'Feststellung bearbeiten':'Neue Feststellung';
+  cGpsLat=f?f.gps_lat||null:null;
+  cGpsLng=f?f.gps_lng||null:null;
   renderMFContent(f);
   ge('mf').classList.remove('h');
+  if(idx===null)autoGPS(); // GPS automatisch beim Öffnen neuer Feststellung
   ge('mf-prog').style.width='0%';
 }
 function closeMF(){
@@ -506,9 +524,17 @@ function renderMFContent(f){
       ${fas.map(fa=>`<option value="${esc(fa.id)}" ${fa.id===(f?f.festst_id:'')? 'selected':''}>${esc(fa.name)}</option>`).join('')}
     </select>
   </div>`;
-  // Lage
+  // Lage + GPS
+  const gpsStr=f&&f.gps_lat?f.gps_lat.toFixed(6)+', '+f.gps_lng.toFixed(6):'';
   h+=`<div class="fg"><label>Lage</label>
     <input type="text" id="fc-lage" value="${esc(f?f.lage_text||'':'')}" placeholder="z.B. Achse B, Km 12+400">
+  </div>
+  <div class="fg">
+    <label>GPS-Koordinaten</label>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input type="text" id="fc-gps" value="${esc(gpsStr)}" placeholder="lat, lng (wird automatisch erfasst)" readonly style="flex:1;font-size:12px;color:var(--tx2)">
+      <button class="btn bs" style="padding:8px 10px;font-size:13px;flex-shrink:0" onclick="refreshGPS()">📍</button>
+    </div>
   </div>`;
   // Fotos
   h+=`<div class="fg"><label>Fotos (${pPics.length})</label>
@@ -564,7 +590,7 @@ function refreshPhotos(){
   ge('mf-title').textContent=(cFestIdx!==null?'Feststellung bearbeiten':'Neue Feststellung')+` (${pPics.length} Foto${pPics.length!==1?'s':''})`;
 }
 
-function saveFest(){
+function saveFest(weiter=false){
   const b=DATA.begehungen.find(x=>x.id===cBegId);if(!b)return;
   const bwId=ge('fc-bw')?ge('fc-bw').value:'';
   const bw=CFG.bauwerke.find(x=>x.id===bwId);
@@ -584,6 +610,7 @@ function saveFest(){
     festst_id:faId,
     festst_name:fa?fa.name:'',
     lage_text:ge('fc-lage')?ge('fc-lage').value.trim():'',
+    gps_lat:cGpsLat,gps_lng:cGpsLng,
     beschreibung:ge('fc-desc')?ge('fc-desc').value.trim():'',
     foto_ids:pPics.map(p=>p.id||''),
     status:'offen',
@@ -591,8 +618,19 @@ function saveFest(){
   };
   if(cFestIdx!==null){b.feststellungen[cFestIdx]=obj;}
   else{b.feststellungen.push(obj);}
-  saveD();closeMF();renderDet(cBegId);
-  toast(cFestIdx!==null?'Feststellung aktualisiert':'Feststellung gespeichert');
+  saveD();
+  if(weiter){
+    // Modal offen lassen, neue Feststellung starten
+    cFestIdx=null;pPics=[];
+    ge('mf-title').textContent='Neue Feststellung';
+    cGpsLat=null;cGpsLng=null;
+    renderMFContent(null);
+    autoGPS();
+    toast('Gespeichert – nächste Feststellung');
+  } else {
+    closeMF();renderDet(cBegId);
+    toast(cFestIdx!==null?'Feststellung aktualisiert':'Feststellung gespeichert');
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -633,8 +671,26 @@ async function abschliessen(bid){
     }
   }
   const blob=await zip.generateAsync({type:'blob'});
-  const fn=`${dateStr}_${(b.e2_such_id||'').replace(/[^a-z0-9_]/gi,'_')}_begehung.zip`;
-  // Share API (iOS) oder Download
+  const uhrZip=(b.uhrzeit||timeStr).replace(':','');
+  const ktZip=slugifyMob((b.e2_such_id||'')+'_'+(b.proj_kurztext||''));
+  const fn=`${dateStr}_${uhrZip}_${ktZip}_begehung.zip`;
+  // Primär: in iCloud-Ordner schreiben
+  const iclHandle=await getHandle('icloud_ablage');
+  if(iclHandle){
+    try{
+      const perm=await iclHandle.queryPermission({mode:'readwrite'});
+      const ok=perm==='granted'||(perm==='prompt'&&await iclHandle.requestPermission({mode:'readwrite'})==='granted');
+      if(ok){
+        const fh=await iclHandle.getFileHandle(fn,{create:true});
+        const w=await fh.createWritable();
+        await w.write(blob);await w.close();
+        b._done=true;saveD();renderUe();nav('ue');
+        toast('✓ ZIP abgelegt: '+fn);
+        return;
+      }
+    }catch(e){console.warn('iCloud-Ablage fehlgeschlagen:',e.message);}
+  }
+  // Fallback: Share Sheet (iOS) oder Download
   if(navigator.share&&navigator.canShare){
     try{
       const file=new File([blob],fn,{type:'application/zip'});
@@ -646,12 +702,55 @@ async function abschliessen(bid){
       }
     }catch(e){if(e.name==='AbortError')return;}
   }
-  // Fallback: Download
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=fn;a.click();
   URL.revokeObjectURL(url);
   b._done=true;saveD();renderUe();nav('ue');
-  toast('ZIP heruntergeladen – Begehung abgeschlossen');
+  toast('ZIP gespeichert: '+fn);
+}
+
+// slugify für ZIP-Namen (identisch zu Desk)
+function slugifyMob(text){return(text||'').replace(/\s+/g,'_').replace(/[<>:"/\\|?* -]/g,'').replace(/_+/g,'_').trim();}
+
+// GPS Koordinaten
+let cGpsLat=null,cGpsLng=null;
+function autoGPS(){
+  if(!navigator.geolocation)return;
+  navigator.geolocation.getCurrentPosition(pos=>{
+    cGpsLat=pos.coords.latitude;cGpsLng=pos.coords.longitude;
+    const el=ge('fc-gps');if(el)el.value=cGpsLat.toFixed(6)+', '+cGpsLng.toFixed(6);
+  },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+}
+function refreshGPS(){
+  if(!navigator.geolocation){toast('GPS nicht verfügbar');return;}
+  toast('GPS wird bestimmt…');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    cGpsLat=pos.coords.latitude;cGpsLng=pos.coords.longitude;
+    const el=ge('fc-gps');if(el)el.value=cGpsLat.toFixed(6)+', '+cGpsLng.toFixed(6);
+    toast('GPS: '+cGpsLat.toFixed(5)+', '+cGpsLng.toFixed(5));
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:0},{});
+}
+
+// Begehungs-Stammdaten direkt aktualisieren
+function updBeg(field,val){
+  const b=DATA.begehungen.find(x=>x.id===cBegId);if(!b)return;
+  b[field]=val;saveD();
+}
+
+// Speichern + Weiter (Modal offen, neue Feststellung)
+function saveFestWeiter(){
+  saveFest(true);
+}
+
+// iCloud-Ablageordner wählen
+async function selectICloudOrdner(){
+  if(!window.showDirectoryPicker){toast('Nicht verfügbar auf diesem Gerät');return;}
+  try{
+    const handle=await window.showDirectoryPicker({mode:'readwrite'});
+    await saveHandle('icloud_ablage',handle);
+    DATA.settings.icloud_name=handle.name;
+    saveD();renderEinst();toast('iCloud-Ordner: '+handle.name);
+  }catch(e){if(e.name!=='AbortError')toast('Fehler: '+e.message);}
 }
 
 function loadScript(src){return new Promise((r,j)=>{const s=document.createElement('script');s.src=src;s.onload=r;s.onerror=j;document.head.appendChild(s);});}
@@ -758,15 +857,19 @@ function importCfgText(text){
 }
 
 // Manueller Import
-function importBegManual(inp){
+async function importBegManual(inp){
   const files=Array.from(inp.files);
   let done=0;
-  files.forEach(f=>{
-    const rd=new FileReader();
-    rd.onload=async e=>{await verarbeiteBegJSON(e.target.result,f.name);done++;if(done===files.length){saveD();renderUe();toast(done+' Datei(en) importiert');}};
-    rd.readAsText(f);
-  });
+  for(const f of files){
+    const text=await f.text();
+    await verarbeiteBegJSON(text,f.name);
+    done++;
+  }
   inp.value='';
+  saveD();renderUe();
+  toast(done+' Datei(en) importiert');
+  // Hinweis: Quelldatei manuell aus iCloud Drive löschen
+  if(done>0)setTimeout(()=>toast('Tipp: importierte Datei(en) aus iCloud löschen'),3000);
 }
 function importCfgManual(inp){
   const f=inp.files[0];if(!f)return;
@@ -779,8 +882,8 @@ function importCfgManual(inp){
 // EINSTELLUNGEN
 // ═══════════════════════════════════════════
 function renderEinst(){
-  ge('od-beg-status').textContent=DATA.settings.od_beg_name?'✓ '+DATA.settings.od_beg_name:'Kein Ordner gewählt';
-  ge('od-cfg-status').textContent=DATA.settings.od_cfg_name?'✓ '+DATA.settings.od_cfg_name:'Kein Ordner gewählt';
+  const ics=ge('icloud-status');
+  if(ics)ics.textContent=DATA.settings.icloud_name?'✓ '+DATA.settings.icloud_name:'Kein Ordner gewählt';
   const info=ge('einst-info');
   if(info){
     const begs=(DATA.begehungen||[]).filter(b=>!b._done).length;
