@@ -174,7 +174,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p07';
+const APP_VER='V1.0',PATCH='p08';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -916,40 +916,10 @@ function hideLoader(){
 // ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
-async function init(){
-  loadD();
+function init(){
+  // Synchron — kein IDB beim Start, sofort zur App
+  try{loadD();}catch(e){DATA={begehungen:[],konfig:null,settings:{}};}
   ge('vb').textContent=APP_VER+' '+PATCH;
-  // iOS-Erkennung: showDirectoryPicker nicht verfügbar → Ordner-Buttons ausblenden
-  const isIOS=!window.showDirectoryPicker;
-  if(isIOS){
-    const ordnerCard=ge('card-ordner');
-    if(ordnerCard){
-      ge('hint-ordner').innerHTML='iOS: Dateien direkt über <b>Manuell importieren</b> aus iCloud Drive oder Files wählen.';
-      ge('fg-beg-ordner').style.display='none';
-      ge('fg-cfg-ordner').style.display='none';
-    }
-  }
-  // Auto-Sync nur wenn showDirectoryPicker verfügbar (Desktop)
-  const hasDirPicker=!!window.showDirectoryPicker;
-  if(hasDirPicker){
-    loaderMsg('Prüfe Export-Ordner…');
-    try{
-      const begHandle=await Promise.race([getHandle('od_beg'),new Promise(r=>setTimeout(()=>r(null),2500))]);
-      const cfgHandle=await Promise.race([getHandle('od_cfg'),new Promise(r=>setTimeout(()=>r(null),2500))]);
-      if(begHandle){
-        try{
-          const perm=await begHandle.queryPermission({mode:'readwrite'});
-          if(perm==='granted'){loaderMsg('Lade Begehungen…');await syncBegehungen(begHandle);}
-        }catch(e){}
-      }
-      if(cfgHandle){
-        try{
-          const perm=await cfgHandle.queryPermission({mode:'read'});
-          if(perm==='granted'){loaderMsg('Lade Konfiguration…');await syncKonfig(cfgHandle);}
-        }catch(e){}
-      }
-    }catch(e){/* IDB nicht verfügbar — kein Problem */}
-  }
   hideLoader();
   nav('ue');
 }
