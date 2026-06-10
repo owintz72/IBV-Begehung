@@ -174,7 +174,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p08';
+const APP_VER='V1.0',PATCH='p09';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -710,7 +710,7 @@ async function abschliessen(bid){
 }
 
 // slugify für ZIP-Namen (identisch zu Desk)
-function slugifyMob(text){return(text||'').replace(/\s+/g,'_').replace(/[<>:"/\\|?* -]/g,'').replace(/_+/g,'_').trim();}
+function slugifyMob(text){var t=(text||'').replace(/[\s]+/g,'_');t=t.replace(/[<>:"/|?]/g,'');t=t.replace(/[*]/g,'');t=t.replace(/_+/g,'_');return t.trim();}
 
 // GPS Koordinaten
 let cGpsLat=null,cGpsLng=null;
