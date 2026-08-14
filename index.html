@@ -174,7 +174,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p11';
+const APP_VER='V1.0',PATCH='p14';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -195,6 +195,12 @@ let cFestIdx=null; // zu bearbeitende Feststellung (null=neu)
 const ge=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const td=()=>new Date().toISOString().slice(0,10);
+// Kennzeichnung für Begehungen ohne Projekt: Datum + laufende Nummer je Tag
+function mobKennzeichnung(b){
+  const sameDay=(DATA.begehungen||[]).filter(x=>!x.e2_such_id&&x.datum===b.datum).sort((a,c)=>(a.erstellt||'').localeCompare(c.erstellt||''));
+  const idx=sameDay.findIndex(x=>x.id===b.id);
+  return fD(b.datum)+' · Begehung Nr. '+(idx+1);
+}
 const fD=s=>{if(!s)return'–';try{return new Date(s+'T00:00:00').toLocaleDateString('de-DE');}catch(e){return s;}};
 const fDT=s=>{if(!s)return'–';try{return new Date(s).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return s;}};
 function uid(p){return p+'_'+(Date.now().toString(36))+'_'+(Math.random().toString(36).slice(2,6));}
@@ -353,16 +359,17 @@ function goBack(){
 // ═══════════════════════════════════════════
 function renderUe(){
   const begs=(DATA.begehungen||[]).filter(b=>!b._done).sort((a,b)=>(a.datum||'').localeCompare(b.datum||''));
+  const neuBtn=`<button class="btn bp blg" style="margin-bottom:12px" onclick="neueBegehungMobil()">＋ Neue Begehung</button>`;
   if(!begs.length){
-    ge('view-ue').innerHTML=`
+    ge('view-ue').innerHTML=neuBtn+`
     <div class="hint" style="margin-top:8px">
       <b>Keine offenen Begehungen.</b><br>
-      Einstellungen → Datei manuell importieren.
+      Neue Begehung starten oder in Einstellungen Datei importieren.
     </div>
     `;
     return;
   }
-  let h='';
+  let h=neuBtn;
   begs.forEach(b=>{
     const dt=new Date((b.datum||td())+'T00:00:00');
     const nF=(b.feststellungen||[]).length;
@@ -372,7 +379,7 @@ function renderUe(){
         <div class="bdm">${dt.toLocaleDateString('de-DE',{month:'short'})}</div>
       </div>
       <div class="bif">
-        <div class="bt">${esc((b.e2_such_id||'–')+(b.proj_kurztext?' – '+b.proj_kurztext:''))}</div>
+        <div class="bt">${b.e2_such_id?esc(b.e2_such_id+(b.proj_kurztext?' – '+b.proj_kurztext:'')):'<span style="color:var(--tx2)">'+esc(mobKennzeichnung(b))+'</span>'}</div>
         <div class="bs2">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit:''}</div>
         <div class="bs2" style="margin-top:1px">${esc(b.ort||'Ort nicht angegeben')} · ${nF} Feststellung${nF!==1?'en':''}</div>
       </div>
@@ -380,6 +387,21 @@ function renderUe(){
     </div>`;
   });
   ge('view-ue').innerHTML=h;
+}
+
+function neueBegehungMobil(){
+  const now=new Date();
+  const b={
+    id:uid('BEG'),
+    datum:td(),
+    uhrzeit:now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0'),
+    e2_such_id:'',proj_kurztext:'',proj_such_id_lang:'',proj_name:'',
+    ort:'',teilnehmer:'',
+    status:'offen',erstellt:now.toISOString(),feststellungen:[]
+  };
+  DATA.begehungen.push(b);saveD();
+  toast('Neue Begehung erstellt');
+  nav('det',b.id);
 }
 
 // ═══════════════════════════════════════════
@@ -396,7 +418,7 @@ async function renderDet(bid){
   const fests=b.feststellungen||[];
   let h=`
   <div class="card" style="margin-bottom:10px">
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px">${esc((b.e2_such_id||'–')+(b.proj_kurztext?' – '+b.proj_kurztext:''))}</div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">${b.e2_such_id?esc(b.e2_such_id+(b.proj_kurztext?' – '+b.proj_kurztext:'')):'<span style="color:var(--tx2)">'+esc(mobKennzeichnung(b))+' – wird in Desktop zugeordnet</span>'}</div>
     <div class="fr" style="gap:8px;margin-bottom:8px">
       <div class="fg" style="margin-bottom:0">
         <label style="font-size:10px;color:var(--tx2);text-transform:uppercase">Datum</label>
@@ -653,6 +675,7 @@ async function abschliessen(bid){
   const now=new Date();
   const dateStr=(b.datum||td()).replace(/-/g,'');
   const timeStr=now.toTimeString().slice(0,5).replace(':','');
+  const fotoTimeStr=now.toTimeString().slice(0,8).replace(/:/g,'');
   // Foto-Dateiname: S{festIdx}_F{fotoNr} — Feststellungs-Zuordnung bleibt erhalten
   for(let fi=0;fi<(b.feststellungen||[]).length;fi++){
     const f=b.feststellungen[fi];
@@ -667,16 +690,16 @@ async function abschliessen(bid){
     let fotoNr=1;
     for(const dataUrl of fotoSrcs){
       const base64=dataUrl.split(',')[1];
-      // Format: JJJJMMTT_HHMM_S01_F01.jpg (S=Feststellung, F=Foto innerhalb)
+      // Format: JJJJMMTT_HHMMSS_S01_F01.jpg (S=Feststellung, F=Foto innerhalb)
       const sIdx=String(fi+1).padStart(2,'0');
       const fNr=String(fotoNr).padStart(2,'0');
-      fotos.file(`${dateStr}_${timeStr}_S${sIdx}_F${fNr}.jpg`,base64,{base64:true});
+      fotos.file(`${dateStr}_${fotoTimeStr}_S${sIdx}_F${fNr}.jpg`,base64,{base64:true});
       fotoNr++;
     }
   }
   const blob=await zip.generateAsync({type:'blob'});
   const uhrZip=(b.uhrzeit||timeStr).replace(':','');
-  const ktZip=slugifyMob((b.e2_such_id||'')+'_'+(b.proj_kurztext||''));
+  const ktZip=slugifyMob((b.e2_such_id||'')+'_'+(b.proj_kurztext||''))||'ohne_projekt';
   const fn=`${dateStr}_${uhrZip}_${ktZip}_begehung.zip`;
   // Desktop: in konfigurierten Ordner schreiben
   if(window.showDirectoryPicker){
