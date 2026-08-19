@@ -174,7 +174,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p14';
+const APP_VER='V1.0',PATCH='p15';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -358,12 +358,15 @@ function goBack(){
 // ÜBERSICHT
 // ═══════════════════════════════════════════
 function renderUe(){
-  const begs=(DATA.begehungen||[]).filter(b=>!b._done).sort((a,b)=>(a.datum||'').localeCompare(b.datum||''));
+  const begs=(DATA.begehungen||[]).sort((a,b)=>{
+    if(!!a._done!==!!b._done)return a._done?1:-1; // offene zuerst
+    return (a.datum||'').localeCompare(b.datum||'');
+  });
   const neuBtn=`<button class="btn bp blg" style="margin-bottom:12px" onclick="neueBegehungMobil()">＋ Neue Begehung</button>`;
   if(!begs.length){
     ge('view-ue').innerHTML=neuBtn+`
     <div class="hint" style="margin-top:8px">
-      <b>Keine offenen Begehungen.</b><br>
+      <b>Keine Begehungen.</b><br>
       Neue Begehung starten oder in Einstellungen Datei importieren.
     </div>
     `;
@@ -373,14 +376,14 @@ function renderUe(){
   begs.forEach(b=>{
     const dt=new Date((b.datum||td())+'T00:00:00');
     const nF=(b.feststellungen||[]).length;
-    h+=`<div class="bi" onclick="nav('det','${b.id}')">
+    h+=`<div class="bi" style="${b._done?'opacity:.65':''}" onclick="nav('det','${b.id}')">
       <div class="bdb">
         <div class="bdd">${dt.getDate().toString().padStart(2,'0')}</div>
         <div class="bdm">${dt.toLocaleDateString('de-DE',{month:'short'})}</div>
       </div>
       <div class="bif">
         <div class="bt">${b.e2_such_id?esc(b.e2_such_id+(b.proj_kurztext?' – '+b.proj_kurztext:'')):'<span style="color:var(--tx2)">'+esc(mobKennzeichnung(b))+'</span>'}</div>
-        <div class="bs2">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit:''}</div>
+        <div class="bs2">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit:''} ${b._done?'· <span style="color:var(--ok)">✓ Exportiert</span>':''}</div>
         <div class="bs2" style="margin-top:1px">${esc(b.ort||'Ort nicht angegeben')} · ${nF} Feststellung${nF!==1?'en':''}</div>
       </div>
       <span style="color:var(--tx2);font-size:20px">›</span>
