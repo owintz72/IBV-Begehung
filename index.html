@@ -174,7 +174,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p16';
+const APP_VER='V1.0',PATCH='p17';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -213,12 +213,23 @@ function toast(m){
 // ═══════════════════════════════════════════
 // DATENHALTUNG
 // ═══════════════════════════════════════════
+// Standard-Feststellungsart für neue Feststellungen — fest im Code hinterlegt,
+// damit sie auch dann als Vorschlag funktioniert, wenn sie aus der Konfiguration
+// (begehung_config.json / Desktop-Konfiguration) gelöscht wurde.
+const FA_DEFAULT_ID='FA_DOK_FIX',FA_DEFAULT_NAME='Dokumentation';
+function ensureDefaultFa(cfg){
+  if(!cfg)return cfg;
+  if(!Array.isArray(cfg.feststellungsarten))cfg.feststellungsarten=[];
+  const hat=cfg.feststellungsarten.some(x=>(x.name||'').trim().toLowerCase()===FA_DEFAULT_NAME.toLowerCase());
+  if(!hat)cfg.feststellungsarten.unshift({id:FA_DEFAULT_ID,name:FA_DEFAULT_NAME});
+  return cfg;
+}
 function loadD(){
   try{const r=localStorage.getItem(SK);DATA=r?JSON.parse(r):{begehungen:[],konfig:null,settings:{}};}
   catch(e){DATA={begehungen:[],konfig:null,settings:{}};}
   if(!DATA.settings)DATA.settings={};
   if(!DATA.begehungen)DATA.begehungen=[];
-  CFG=DATA.konfig||dfltCfg();
+  CFG=ensureDefaultFa(DATA.konfig||dfltCfg());
 }
 function saveD(){
   DATA._sv=new Date().toISOString();
@@ -544,11 +555,13 @@ function renderMFContent(f,begForDefault){
     '<option value="">— Bauwerk wählen —</option>'}</select>
     <input type="text" id="fc-bt-txt" value="${esc(f?f.bt_freitext||'':'')}" placeholder="Freitext (optional – überschreibt Auswahl)" style="margin-top:6px">
   </div>`;
-  // Feststellungsart
+  // Feststellungsart — bei neuer Feststellung fest auf "Dokumentation" voreingestellt (Dropdown bleibt änderbar)
+  const defFa=fas.find(x=>(x.name||'').trim().toLowerCase()===FA_DEFAULT_NAME.toLowerCase());
+  const curFaId=f?f.festst_id:(defFa?defFa.id:'');
   h+=`<div class="fg"><label>Feststellungsart</label>
     <select id="fc-fa">
       <option value="">— wählen —</option>
-      ${fas.map(fa=>`<option value="${esc(fa.id)}" ${fa.id===(f?f.festst_id:'')? 'selected':''}>${esc(fa.name)}</option>`).join('')}
+      ${fas.map(fa=>`<option value="${esc(fa.id)}" ${fa.id===curFaId? 'selected':''}>${esc(fa.name)}</option>`).join('')}
     </select>
   </div>`;
   // Lage + GPS
@@ -874,7 +887,7 @@ async function verarbeiteBegJSON(text, fname){
     if(!beg.id)throw new Error('Kein id-Feld');
     // Konfig aus Datei übernehmen falls noch keine vorhanden
     if(payload.konfig&&!DATA.konfig){
-      DATA.konfig=payload.konfig;CFG=DATA.konfig;
+      DATA.konfig=payload.konfig;CFG=ensureDefaultFa(DATA.konfig);
     }
     // Begehung nur hinzufügen wenn noch nicht vorhanden
     if(!DATA.begehungen.find(x=>x.id===beg.id)){
@@ -889,7 +902,7 @@ function importCfgText(text){
   try{
     const cfg=JSON.parse(text);
     if(cfg.bauwerke||cfg.feststellungsarten){
-      DATA.konfig=cfg;CFG=cfg;saveD();
+      DATA.konfig=cfg;CFG=ensureDefaultFa(cfg);saveD();
     }
   }catch(e){toast('Config-Fehler: '+e.message);}
 }
