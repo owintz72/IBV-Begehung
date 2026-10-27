@@ -128,6 +128,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <button class="btn bp blg" id="btn-icloud-ordner" onclick="selectICloudOrdner()" style="display:none">📁 Ablageordner wählen (Desktop)</button>
       </div>
       <div class="card">
+        <h3>☁ Cloud (Supabase)</h3>
+        <div class="hint">Begehungen werden beim Abschließen verschlüsselt in die Cloud gelegt und am Desktop abgerufen. Ohne Anmeldung gilt der bisherige Weg (Teilen/ZIP).</div>
+        <div id="cloud-status" style="font-size:13px;color:var(--tx2);margin-bottom:10px"></div>
+        <div class="fg"><label>E-Mail</label><input type="email" id="cl-mail" autocomplete="username"></div>
+        <div class="fg"><label>Cloud-Passwort (Anmeldung)</label><input type="password" id="cl-pw" autocomplete="current-password"></div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="btn bp blg" style="flex:1" onclick="cloudLoginUi()">Anmelden</button>
+          <button class="btn bs blg" style="flex:1" onclick="cloudLogoutUi()">Abmelden</button>
+        </div>
+        <div class="fg"><label>Verschlüsselungs-Passwort (auf allen Geräten gleich)</label><input type="password" id="cl-enc" autocomplete="off" placeholder="mind. 8 Zeichen"></div>
+        <button class="btn bs blg" onclick="cloudSavePwUi()" style="margin-bottom:8px">🔐 Verschlüsselungs-Passwort speichern</button>
+        <button class="btn bs blg" onclick="cloudConfigUi()">⚙️ Konfiguration aus Cloud aktualisieren</button>
+      </div>
+      <div class="card">
         <h3>Manuell importieren</h3>
         <div style="display:flex;flex-direction:column;gap:8px">
           <label class="btn bs blg" style="cursor:pointer">📂 begehung_offen.json(s) importieren<input type="file" accept=".json" multiple style="display:none" onchange="importBegManual(this)"></label>
@@ -174,7 +188,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p17';
+const APP_VER='V1.0',PATCH='p18';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -723,6 +737,18 @@ async function abschliessen(bid){
   const uhrZip=(b.uhrzeit||timeStr).replace(':','');
   const ktZip=slugifyMob((b.e2_such_id||'')+'_'+(b.proj_kurztext||''))||'ohne_projekt';
   const fn=`${dateStr}_${uhrZip}_${ktZip}_begehung.zip`;
+  // Cloud (Supabase, Ende-zu-Ende-verschlüsselt) – wenn angemeldet; sonst/bei Fehler bisheriger Weg
+  if(await cloudReady()){
+    try{
+      toast('Upload in die Cloud…');
+      await cloudUpload('inbox/'+_cSafe(fn)+'.enc',blob,false);
+      b._done=true;saveD();renderUe();nav('ue');
+      toast('✓ In Cloud hochgeladen (verschlüsselt)');
+      return;
+    }catch(e){
+      toast('Cloud-Upload fehlgeschlagen ('+((e&&e.message)||e)+') – lokaler Weg');
+    }
+  }
   // Desktop: in konfigurierten Ordner schreiben
   if(window.showDirectoryPicker){
     const iclHandle=await getHandle('icloud_ablage').catch(()=>null);
@@ -933,6 +959,7 @@ function importCfgManual(inp){
 // EINSTELLUNGEN
 // ═══════════════════════════════════════════
 function renderEinst(){
+  renderCloudStatus();
   const ics=ge('icloud-status');
   const hasDP=!!window.showDirectoryPicker;
   const iclBtn=ge('btn-icloud-ordner');
@@ -963,6 +990,135 @@ async function clearAll(){
 }
 
 // ═══════════════════════════════════════════
+// CLOUD (Supabase) – Ende-zu-Ende-verschlüsselte Zwischenablage
+// Alle Inhalte werden im Browser mit AES-256-GCM verschlüsselt (Schlüssel aus
+// dem Verschlüsselungs-Passwort via PBKDF2). Supabase sieht nur Chiffretext.
+// Ordner im privaten Bucket: <user-id>/inbox/*.enc (Begehungen), <user-id>/config/*.enc
+// ═══════════════════════════════════════════
+const SB_URL='https://xvkojdygavqwnaxakqex.supabase.co';
+const SB_KEY='sb_publishable_08P84brQ4fgTiKcjHV1eGw_Ag75wz3E';
+const SB_BUCKET='begehungen';
+const CL_PW_KEY='ibv_cloud_encpw',CL_MAIL_KEY='ibv_cloud_mail';
+let _sb=null;
+function cloudPw(){try{return localStorage.getItem(CL_PW_KEY)||'';}catch(e){return '';}}
+function _cSafe(n){return String(n||'').replace(/[^A-Za-z0-9._-]/g,'_');}
+function _cTimeout(p,ms,msg){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg||'Zeitüberschreitung')),ms))]);}
+async function sbClient(){
+  if(_sb)return _sb;
+  if(!window.supabase)await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js');
+  _sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+  return _sb;
+}
+async function cloudUser(){
+  try{const sb=await sbClient();const{data}=await sb.auth.getSession();return data&&data.session?data.session.user:null;}
+  catch(e){return null;}
+}
+async function cloudReady(){return !!(cloudPw()&&await cloudUser());}
+async function cloudLogin(email,pw){
+  const sb=await sbClient();
+  const{error}=await sb.auth.signInWithPassword({email,password:pw});
+  if(error)throw error;
+}
+async function cloudLogout(){const sb=await sbClient();await sb.auth.signOut();}
+
+// ── Verschlüsselung: Datei = 'IBV1' + Salt(16) + IV(12) + AES-GCM-Chiffretext
+async function _cKey(pass,salt){
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function cloudEncrypt(blob){
+  const pass=cloudPw();if(!pass)throw new Error('Verschlüsselungs-Passwort fehlt');
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await _cKey(pass,salt);
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,await blob.arrayBuffer()));
+  return new Blob([new TextEncoder().encode('IBV1'),salt,iv,ct],{type:'application/octet-stream'});
+}
+async function cloudDecrypt(blob){
+  const pass=cloudPw();if(!pass)throw new Error('Verschlüsselungs-Passwort fehlt');
+  const buf=new Uint8Array(await blob.arrayBuffer());
+  if(buf.length<33||new TextDecoder().decode(buf.slice(0,4))!=='IBV1')throw new Error('Unbekanntes Dateiformat');
+  const key=await _cKey(pass,buf.slice(4,20));
+  try{return new Blob([await crypto.subtle.decrypt({name:'AES-GCM',iv:buf.slice(20,32)},key,buf.slice(32))]);}
+  catch(e){throw new Error('Entschlüsselung fehlgeschlagen – Verschlüsselungs-Passwort auf diesem Gerät falsch?');}
+}
+
+// ── Speicher
+async function cloudUpload(path,blob,upsert){
+  const sb=await sbClient(),u=await cloudUser();if(!u)throw new Error('Nicht angemeldet');
+  const enc=await cloudEncrypt(blob);
+  const{error}=await _cTimeout(sb.storage.from(SB_BUCKET).upload(u.id+'/'+path,enc,{upsert:!!upsert,contentType:'application/octet-stream'}),120000,'Upload-Zeitüberschreitung');
+  if(error)throw error;
+}
+async function cloudList(folder){
+  const sb=await sbClient(),u=await cloudUser();if(!u)throw new Error('Nicht angemeldet');
+  const{data,error}=await _cTimeout(sb.storage.from(SB_BUCKET).list(u.id+'/'+folder,{limit:100,sortBy:{column:'created_at',order:'asc'}}),30000);
+  if(error)throw error;
+  return(data||[]).filter(x=>x.id&&x.name&&x.name.endsWith('.enc'));
+}
+async function cloudDownload(path){
+  const sb=await sbClient(),u=await cloudUser();if(!u)throw new Error('Nicht angemeldet');
+  const{data,error}=await _cTimeout(sb.storage.from(SB_BUCKET).download(u.id+'/'+path),120000,'Download-Zeitüberschreitung');
+  if(error)throw error;
+  return await cloudDecrypt(data);
+}
+async function cloudRemove(path){
+  const sb=await sbClient(),u=await cloudUser();if(!u)throw new Error('Nicht angemeldet');
+  const{error}=await sb.storage.from(SB_BUCKET).remove([u.id+'/'+path]);
+  if(error)throw error;
+}
+
+// ── Oberfläche (Einstellungen)
+async function renderCloudStatus(){
+  const el=ge('cloud-status');if(!el)return;
+  const u=await cloudUser();
+  el.innerHTML=(u?'✓ Angemeldet: '+esc(u.email):'⚠ Nicht angemeldet')+'<br>'+(cloudPw()?'✓ Verschlüsselungs-Passwort gespeichert':'⚠ Verschlüsselungs-Passwort fehlt');
+  const m=ge('cl-mail');
+  if(m&&!m.value){try{m.value=(u&&u.email)||localStorage.getItem(CL_MAIL_KEY)||'';}catch(e){}}
+}
+async function cloudLoginUi(){
+  const mail=(ge('cl-mail').value||'').trim(),pw=ge('cl-pw').value;
+  if(!mail||!pw){toast('E-Mail und Passwort eingeben');return;}
+  try{
+    await cloudLogin(mail,pw);
+    try{localStorage.setItem(CL_MAIL_KEY,mail);}catch(e){}
+    ge('cl-pw').value='';toast('✓ Angemeldet');
+  }catch(e){toast('Anmeldung fehlgeschlagen: '+(e.message||e));}
+  renderCloudStatus();
+  if(typeof cloudAfterLogin==='function')cloudAfterLogin();
+}
+async function cloudLogoutUi(){
+  try{await cloudLogout();toast('Abgemeldet');}catch(e){toast('Fehler: '+(e.message||e));}
+  renderCloudStatus();
+}
+function cloudSavePwUi(){
+  const p=ge('cl-enc').value;
+  if(!p||p.length<8){toast('Verschlüsselungs-Passwort: mindestens 8 Zeichen');return;}
+  try{localStorage.setItem(CL_PW_KEY,p);}catch(e){toast('Speichern nicht möglich');return;}
+  ge('cl-enc').value='';toast('✓ Verschlüsselungs-Passwort gespeichert');
+  renderCloudStatus();
+  if(typeof cloudAfterLogin==='function')cloudAfterLogin();
+}
+
+// ── Mobile: Konfiguration aus Cloud holen (Desktop → Cloud → Mobile)
+async function cloudConfigHolen(silent){
+  try{
+    if(!(await cloudReady())){if(!silent)toast('Cloud: bitte erst anmelden und Verschlüsselungs-Passwort speichern');return;}
+    const blob=await cloudDownload('config/begehung_config.enc');
+    const text=await blob.text();
+    const alt=JSON.stringify(DATA.konfig||null);
+    importCfgText(text);
+    const neu=JSON.stringify(DATA.konfig||null);
+    if(!silent||alt!==neu)toast(alt!==neu?'✓ Konfiguration aktualisiert':'Konfiguration ist aktuell');
+    renderEinst();
+  }catch(e){
+    const m=(e&&e.message)||String(e);
+    if(!silent)toast('Konfig aus Cloud: '+(/not found|Object/i.test(m)?'noch keine Konfiguration in der Cloud (am Desktop speichern)':m));
+  }
+}
+function cloudConfigUi(){cloudConfigHolen(false);}
+function cloudAfterLogin(){cloudConfigHolen(true);}
+
+// ═══════════════════════════════════════════
 // LOADER
 // ═══════════════════════════════════════════
 function loaderMsg(m){const el=ge('loader-msg');if(el)el.textContent=m;}
@@ -980,6 +1136,7 @@ function init(){
   ge('vb').textContent=APP_VER+' '+PATCH;
   hideLoader();
   nav('ue');
+  if(navigator.onLine)setTimeout(()=>{cloudConfigHolen(true);},800);
 }
 init();
 </script>
