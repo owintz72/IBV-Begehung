@@ -119,6 +119,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .ce-acts{display:flex;gap:4px;flex:none;}
 .ce-conf{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;padding:6px 8px 6px 12px;flex:1;}
 .ce-conf input{flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--bd);border-radius:6px;font:inherit;font-size:14px;}
+.bni.fab{color:#c8bef0;}
+.bni.fab .bni-ic{background:var(--ac);color:#fff;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:26px;margin-top:-22px;box-shadow:0 2px 8px rgba(0,0,0,.35);line-height:1;}
+.bni.sv{color:#a8dcc0;}
+#bn{align-items:flex-end;position:relative;z-index:5;}
+.sg{display:flex;flex-direction:column;border:1px solid var(--bd);border-radius:8px;overflow:hidden;background:#fff;margin-top:4px;}
+.sg button{text-align:left;padding:10px 12px;border:0;border-top:1px solid var(--bd);background:#fff;font:inherit;font-size:15px;color:var(--tx);-webkit-appearance:none;}
+.sg button:first-child{border-top:0;}
+.sg mark{background:#e8e4f8;color:var(--ac);font-weight:600;padding:0;}
 </style>
 </head>
 <body>
@@ -158,15 +166,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="hint">Bauwerke und Bauteile hier bearbeiten. Die neueste Konfiguration (Handy oder Desktop) gewinnt und wird über die Cloud abgeglichen.</div>
         <button class="btn bp blg" onclick="nav('konfig')">🏗 Bauwerke &amp; Bauteile bearbeiten</button>
       </div>
-      <div class="card" id="card-icloud">
-        <h3>ZIP-Ablage</h3>
-        <div id="icloud-hint" class="hint">Auf iOS: ZIP wird über das Share Sheet geteilt → „In Dateien sichern" → iCloud Drive Ordner wählen.</div>
-        <div id="icloud-status" style="font-size:13px;color:var(--tx2);margin-bottom:10px"></div>
-        <button class="btn bp blg" id="btn-icloud-ordner" onclick="selectICloudOrdner()" style="display:none">📁 Ablageordner wählen (Desktop)</button>
-      </div>
       <div class="card">
         <h3>☁ Cloud (Supabase)</h3>
-        <div class="hint">Begehungen werden beim Speichern verschlüsselt in die Cloud gelegt und am Desktop abgerufen. Ohne Anmeldung gilt der bisherige Weg (Teilen/ZIP).</div>
+        <div class="hint">Begehungen werden beim Speichern verschlüsselt in die Cloud gelegt und am Desktop abgerufen. Ohne Anmeldung kann nicht gespeichert werden. Ohne Netz wird vorgemerkt und später automatisch hochgeladen.</div>
         <div id="cloud-status" style="font-size:13px;color:var(--tx2);margin-bottom:10px"></div>
         <div class="fg"><label>E-Mail</label><input type="email" id="cl-mail" autocomplete="username"></div>
         <div class="fg"><label>Cloud-Passwort (Anmeldung)</label><input type="password" id="cl-pw" autocomplete="current-password"></div>
@@ -179,13 +181,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <button class="btn bs blg" onclick="cloudConfigUi()">⚙️ Konfiguration mit Cloud abgleichen</button>
       </div>
       <div class="card">
-        <h3>Manuell importieren</h3>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <label class="btn bs blg" style="cursor:pointer">📂 begehung_offen.json(s) importieren<input type="file" accept=".json" multiple style="display:none" onchange="importBegManual(this)"></label>
-          <label class="btn bs blg" style="cursor:pointer">⚙️ begehung_config.json importieren<input type="file" accept=".json" style="display:none" onchange="importCfgManual(this)"></label>
-        </div>
-      </div>
-      <div class="card">
         <h3>Daten</h3>
         <div id="einst-info" style="font-size:12px;color:var(--tx2);margin-bottom:10px"></div>
         <button class="btn bd2 blg" onclick="clearAll()">🗑 Alle lokalen Daten löschen</button>
@@ -195,14 +190,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 
   <!-- BOTTOM NAV -->
-  <div id="bn">
-    <button class="bni on" data-v="ue" onclick="nav('ue')">
-      <span class="bni-ic">📋</span>Begehungen
-    </button>
-    <button class="bni" data-v="einst" onclick="nav('einst')">
-      <span class="bni-ic">⚙️</span>Einstellungen
-    </button>
-  </div>
+  <div id="bn"></div>
 
 </div>
 
@@ -225,7 +213,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p21';
+const APP_VER='V1.0',PATCH='p22';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -416,6 +404,19 @@ function nav(v,bid){
     if(navHistory[navHistory.length-1]!=='einst')navHistory.push('einst');
     _ceMode=null;ceRender();
   }
+  renderBn(v);
+}
+function renderBn(v){
+  const bn=ge('bn');if(!bn)return;
+  const bt=(ic,lb,cls,oc)=>`<button class="bni ${cls||''}" onclick="${oc}"><span class="bni-ic">${ic}</span>${lb}</button>`;
+  let h=bt('📋','Begehungen',v==='ue'?'on':'',"nav('ue')");
+  if(v==='ue')h+=bt('＋','Begehung','fab',"neueBegehungMobil()");
+  else if(v==='det'&&cBegId){
+    h+=bt('＋','Feststellung','fab',"openMF(null,'"+cBegId+"')");
+    h+=bt('💾','Speichern','sv',"abschliessen('"+cBegId+"')");
+  }
+  h+=bt('⚙️','Einstellungen',(v==='einst'||v==='konfig')?'on':'',"nav('einst')");
+  bn.innerHTML=h;
 }
 function goBack(){
   const prev=navHistory.pop();
@@ -430,12 +431,12 @@ function renderUe(){
     if(!!a._done!==!!b._done)return a._done?1:-1; // offene zuerst
     return (a.datum||'').localeCompare(b.datum||'');
   });
-  const neuBtn=`<button class="btn bp blg" style="margin-bottom:12px" onclick="neueBegehungMobil()">＋ Neue Begehung</button>`;
+  const neuBtn='';
   if(!begs.length){
     ge('view-ue').innerHTML=neuBtn+`
     <div class="hint" style="margin-top:8px">
       <b>Keine Begehungen.</b><br>
-      Neue Begehung starten oder in Einstellungen Datei importieren.
+      Unten auf ＋ tippen, um eine Begehung zu starten.
     </div>
     `;
     return;
@@ -451,10 +452,10 @@ function renderUe(){
       </div>
       <div class="bif">
         <div class="bt">${b.e2_such_id?esc(b.e2_such_id+(b.proj_kurztext?' – '+b.proj_kurztext:'')):'<span style="color:var(--tx2)">'+esc(mobKennzeichnung(b))+'</span>'}</div>
-        <div class="bs2">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit:''} ${b._cloud==='pending'?'· <span style="color:#b8860b">⏳ wartet auf Upload</span>':b._cloud==='sent'?'· <span style="color:var(--ok)">✓ In Cloud</span>':b._done?'· <span style="color:var(--ok)">✓ Exportiert</span>':''}</div>
+        <div class="bs2">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit:''} ${b._cloud==='pending'?'· <span style="color:#b8860b">⏳ wartet auf Upload</span>':b._cloud==='sent'?'· <span style="color:var(--ok)">✓ In Cloud</span>':b._done?'· <span style="color:var(--ok)">✓ Gesendet</span>':''}</div>
         <div class="bs2" style="margin-top:1px">${esc(b.ort||'Ort nicht angegeben')} · ${nF} Feststellung${nF!==1?'en':''}</div>
       </div>
-      ${(b._done&&b._cloud!=='pending')?`<button class="btn bs" style="padding:8px 10px;font-size:16px" aria-label="Begehung löschen" onclick="event.stopPropagation();begLoeschen('${b.id}')">🗑</button>`:''}
+      ${(b._done&&b._cloud!=='pending'&&!b._cloudPath)?`<button class="btn bs" style="padding:8px 10px;font-size:16px" aria-label="Begehung löschen" onclick="event.stopPropagation();begLoeschen('${b.id}')">🗑</button>`:''}
       <span style="color:var(--tx2);font-size:20px">›</span>
     </div>`;
   });
@@ -522,9 +523,8 @@ async function renderDet(bid){
     </div>
   </div>
 
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+  <div style="margin-bottom:10px">
     <div style="font-size:14px;font-weight:600">Feststellungen (${fests.length})</div>
-    <button class="btn bp" style="padding:8px 14px;font-size:13px" onclick="openMF(null,'${bid}')">＋ Neu</button>
   </div>`;
 
   fests.forEach((f,i)=>{
@@ -542,10 +542,7 @@ async function renderDet(bid){
     </div>`;
   });
 
-  h+=`<button class="btn bp blg" style="margin-top:4px" onclick="openMF(null,'${bid}')">＋ Neue Feststellung</button>`;
-  h+=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
-    <button class="btn bok blg" onclick="abschliessen('${bid}')">💾 Begehung speichern</button>
-  </div>`;
+  h+='<div style="height:12px"></div>';
   ge('view-det').innerHTML=h;
   // Fotos asynchron nachladen
   for(const [i,f] of fests.entries()){
@@ -616,14 +613,15 @@ function renderMFContent(f,begForDefault){
   // Bauwerk
   h+=`<div class="fg"><label>Bauwerk</label>
     <select id="fc-bw" onchange="onBwChange()">${bws.map(b=>`<option value="${esc(b.id)}" ${b.id===curBwId?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
-    <input type="text" id="fc-bw-txt" value="${esc(curBwFt)}" placeholder="Freitext (optional – überschreibt Auswahl)" style="margin-top:6px">
-    <div class="sub">Freitext leer → Dropdown-Wert wird verwendet</div>
+    <input type="text" id="fc-bw-txt" value="${esc(curBwFt)}" placeholder="Oder neu tippen – Vorschläge erscheinen" autocomplete="off" oninput="sgUpdate('bw')" style="margin-top:6px">
+    <div id="sg-bw"></div>
   </div>`;
   // Bauteil
   h+=`<div class="fg"><label>Bauteil</label>
     <select id="fc-bt">${bts.length?bts.map(bt=>{const sel=(f&&(f.bt_freitext||f.bauteil)===bt)?'selected':'';return '<option value="'+esc(bt)+'" '+sel+'>'+esc(bt)+'</option>';}).join(''):
     '<option value="">— Bauwerk wählen —</option>'}</select>
-    <input type="text" id="fc-bt-txt" value="${esc(f?f.bt_freitext||'':'')}" placeholder="Freitext (optional – überschreibt Auswahl)" style="margin-top:6px">
+    <input type="text" id="fc-bt-txt" value="${esc(f?f.bt_freitext||'':'')}" placeholder="Oder neu tippen – Vorschläge erscheinen" autocomplete="off" oninput="sgUpdate('bt')" style="margin-top:6px">
+    <div id="sg-bt"></div>
   </div>`;
   // Feststellungsart — bei neuer Feststellung fest auf "Dokumentation" voreingestellt (Dropdown bleibt änderbar)
   const defFa=fas.find(x=>(x.name||'').trim().toLowerCase()===FA_DEFAULT_NAME.toLowerCase());
@@ -662,6 +660,40 @@ function renderMFContent(f,begForDefault){
 }
 
 function onBwChange(){updateBts();}
+// Vorschläge beim Tippen (Bauwerk / Bauteil), damit nichts doppelt angelegt wird
+function sgBauteile(){
+  const m={};
+  (CFG.bauwerke||[]).forEach(b=>(b.bt||[]).forEach(x=>{const k=ceKey(x);if(k&&!m[k])m[k]=ceNorm(x);}));
+  return Object.keys(m).map(k=>m[k]).sort((a,b)=>a.localeCompare(b,'de',{sensitivity:'base'}));
+}
+function sgUpdate(kind){
+  const inp=ge(kind==='bw'?'fc-bw-txt':'fc-bt-txt'),box=ge('sg-'+kind);if(!inp||!box)return;
+  const v=ceNorm(inp.value);
+  if(!v){box.innerHTML='';return;}
+  const k=ceKey(v);
+  const src=kind==='bw'?(CFG.bauwerke||[]).map(b=>b.name):sgBauteile();
+  let exact=false;const st=[],ct=[];
+  src.forEach(n=>{const l=ceKey(n);if(l===k)exact=true;else if(l.indexOf(k)===0)st.push(n);else if(l.indexOf(k)>0)ct.push(n);});
+  const all=st.concat(ct).slice(0,6);
+  let h='';
+  if(all.length)h+='<div class="sg">'+all.map(n=>{const i=ceKey(n).indexOf(k);return '<button type="button" data-v="'+esc(n)+'" onclick="sgPick(\''+kind+'\',this.dataset.v)">'+esc(n.slice(0,i))+'<mark>'+esc(n.slice(i,i+v.length))+'</mark>'+esc(n.slice(i+v.length))+'</button>';}).join('')+'</div>';
+  h+=exact?'<div class="sub">Gibt es schon – wird übernommen.</div>':'<div class="sub" style="color:var(--ac)">Neu: wird beim Speichern in die Liste aufgenommen.</div>';
+  box.innerHTML=h;
+}
+function sgPick(kind,name){
+  if(kind==='bw'){
+    const bw=(CFG.bauwerke||[]).find(x=>ceKey(x.name)===ceKey(name));
+    if(bw){ge('fc-bw').value=bw.id;ge('fc-bw-txt').value='';updateBts();}
+    ge('sg-bw').innerHTML='';
+  }else{
+    const sel=ge('fc-bt');
+    const opt=sel?[...sel.options].find(o=>ceKey(o.value)===ceKey(name)):null;
+    if(opt){sel.value=opt.value;ge('fc-bt-txt').value='';}
+    else ge('fc-bt-txt').value=name;
+    sgUpdate('bt');
+    if(opt)ge('sg-bt').innerHTML='';
+  }
+}
 function updateBts(){
   const bwId=ge('fc-bw')?ge('fc-bw').value:'';
   const bw=CFG.bauwerke.find(b=>b.id===bwId);
@@ -703,11 +735,28 @@ function refreshPhotos(){
 function saveFest(weiter=false){
   const b=DATA.begehungen.find(x=>x.id===cBegId);if(!b)return;
   const wasNeu=cFestIdx===null;
-  const bwId=ge('fc-bw')?ge('fc-bw').value:'';
+  let bwId=ge('fc-bw')?ge('fc-bw').value:'';
+  let bwFt=(ge('fc-bw-txt')?ceNorm(ge('fc-bw-txt').value):'');
+  let btVal=ge('fc-bt')?ge('fc-bt').value:'';
+  let btFt=(ge('fc-bt-txt')?ceNorm(ge('fc-bt-txt').value):'');
+  // Freitext-Bauwerk/-Bauteil: vorhandenen Eintrag verwenden oder neu in die Konfiguration aufnehmen
+  let cfgChanged=false;
+  if(bwFt){
+    const ex=CFG.bauwerke.find(x=>ceKey(x.name)===ceKey(bwFt));
+    if(ex){bwId=ex.id;}
+    else{const nb={id:'BW'+(Date.now()%1000000),name:bwFt,bt:[]};CFG.bauwerke.push(nb);bwId=nb.id;cfgChanged=true;}
+    bwFt='';
+  }
+  if(btFt){
+    const bwo=CFG.bauwerke.find(x=>x.id===bwId);
+    if(bwo){
+      const nm=sgBauteile().find(x=>ceKey(x)===ceKey(btFt))||btFt;
+      if(!(bwo.bt||[]).some(x=>ceKey(x)===ceKey(nm))){(bwo.bt=bwo.bt||[]).push(nm);cfgChanged=true;}
+      btVal=nm;btFt='';
+    }
+  }
+  if(cfgChanged){cfgEdGet();cfgEdSave();}
   const bw=CFG.bauwerke.find(x=>x.id===bwId);
-  const bwFt=(ge('fc-bw-txt')?ge('fc-bw-txt').value.trim():'');
-  const btVal=ge('fc-bt')?ge('fc-bt').value:'';
-  const btFt=(ge('fc-bt-txt')?ge('fc-bt-txt').value.trim():'');
   const faId=ge('fc-fa')?ge('fc-fa').value:'';
   const fa=CFG.feststellungsarten.find(x=>x.id===faId);
   const obj={
@@ -794,61 +843,30 @@ async function buildBegehungZip(b){
   return{blob,fn};
 }
 
+function sentSig(b){
+  const f=b.feststellungen||[];
+  return f.length+'|'+f.reduce((m,x)=>((x.ts||'')>m?(x.ts||''):m),'')+'|'+(b.ort||'')+'|'+(b.teilnehmer||'')+'|'+(b.datum||'')+'|'+(b.uhrzeit||'');
+}
+function cloudPathFor(fn){return 'inbox/'+_cSafe(fn.replace(/\.zip$/,''))+'_'+Date.now().toString(36)+'.zip.enc';}
+function markSent(b,path){b._cloud='sent';b._cloudPath=path;b._sentSig=sentSig(b);b._done=true;saveD();}
 async function abschliessen(bid){
   const b=DATA.begehungen.find(x=>x.id===bid);if(!b)return;
+  if(!cloudConfigured()){toast('Bitte erst unter Einstellungen bei der Cloud anmelden');return;}
   toast('Begehung wird gespeichert…');
   const{blob,fn}=await buildBegehungZip(b);
-  // Cloud (Supabase, Ende-zu-Ende-verschlüsselt) – wenn angemeldet.
-  // Ohne Netz oder bei Fehler: vormerken, wird automatisch hochgeladen sobald wieder online.
-  if(cloudConfigured()){
-    if(navigator.onLine&&await cloudReady()){
-      try{
-        toast('Upload in die Cloud…');
-        await cloudUpload('inbox/'+_cSafe(fn.replace(/\.zip$/,''))+'_'+Date.now().toString(36)+'.zip.enc',blob,false);
-        b._cloud='sent';b._done=true;saveD();renderUe();nav('ue');
-        toast('✓ In Cloud hochgeladen (verschlüsselt)');
-        return;
-      }catch(e){console.warn('Cloud-Upload fehlgeschlagen:',e&&e.message);}
-    }
-    b._cloud='pending';saveD();renderUe();nav('ue');
-    toast('Kein Netz: gespeichert – wird automatisch hochgeladen, sobald wieder online');
-    return;
-  }
-  // Desktop: in konfigurierten Ordner schreiben
-  if(window.showDirectoryPicker){
-    const iclHandle=await getHandle('icloud_ablage').catch(()=>null);
-    if(iclHandle){
-      try{
-        const perm=await iclHandle.queryPermission({mode:'readwrite'});
-        const ok=perm==='granted'||(perm==='prompt'&&await iclHandle.requestPermission({mode:'readwrite'})==='granted');
-        if(ok){
-          const fh=await iclHandle.getFileHandle(fn,{create:true});
-          const w=await fh.createWritable();
-          await w.write(blob);await w.close();
-          b._done=true;saveD();renderUe();nav('ue');
-          toast('✓ ZIP abgelegt: '+fn);
-          return;
-        }
-      }catch(e){console.warn('Ablage fehlgeschlagen:',e.message);}
-    }
-  }
-  // iOS: Share Sheet (nativer Weg – „In Dateien sichern" → iCloud)
-  if(navigator.share&&navigator.canShare){
+  // Ende-zu-Ende-verschlüsselt in die Cloud. Ohne Netz oder bei Fehler: vormerken, automatischer Upload sobald online.
+  if(navigator.onLine&&await cloudReady()){
     try{
-      const file=new File([blob],fn,{type:'application/zip'});
-      if(navigator.canShare({files:[file]})){
-        await navigator.share({files:[file],title:'Begehung '+fD(b.datum)});
-        b._done=true;saveD();renderUe();nav('ue');
-        toast('Geteilt – Begehung abgeschlossen');
-        return;
-      }
-    }catch(e){if(e.name==='AbortError')return;}
+      toast('Upload in die Cloud…');
+      const path=cloudPathFor(fn);
+      await cloudUpload(path,blob,false);
+      markSent(b,path);renderUe();nav('ue');
+      toast('✓ In Cloud hochgeladen (verschlüsselt)');
+      return;
+    }catch(e){console.warn('Cloud-Upload fehlgeschlagen:',e&&e.message);}
   }
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download=fn;a.click();
-  URL.revokeObjectURL(url);
-  b._done=true;saveD();renderUe();nav('ue');
-  toast('ZIP gespeichert: '+fn);
+  b._cloud='pending';b._done=true;saveD();renderUe();nav('ue');
+  toast('Kein Netz: gespeichert – wird automatisch hochgeladen, sobald wieder online');
 }
 
 // slugify für ZIP-Namen (identisch zu Desk)
@@ -867,15 +885,39 @@ async function cloudSyncPending(){
     for(const b of pend){
       try{
         const{blob,fn}=await buildBegehungZip(b);
-        await cloudUpload('inbox/'+_cSafe(fn.replace(/\.zip$/,''))+'_'+Date.now().toString(36)+'.zip.enc',blob,false);
-        b._cloud='sent';b._done=true;saveD();renderUe();
+        const path=cloudPathFor(fn);
+        await cloudUpload(path,blob,false);
+        markSent(b,path);renderUe();
         toast('☁ Hochgeladen: '+(b.e2_such_id||mobKennzeichnung(b)));
       }catch(e){console.warn('Sync später erneut:',e&&e.message);break;}
     }
   }finally{_cloudSyncing=false;}
 }
-window.addEventListener('online',()=>{setTimeout(cloudSyncPending,1500);});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(cloudSyncPending,1000);});
+// ── Vom Desktop abgerufene Begehungen verschwinden aus der Cloud → hier ebenfalls entfernen
+let _cleaning=false;
+async function cloudCleanupSent(){
+  if(_cleaning||!navigator.onLine)return;
+  const cand=(DATA.begehungen||[]).filter(b=>b._cloud==='sent'&&b._cloudPath);
+  if(!cand.length)return;
+  _cleaning=true;
+  try{
+    if(!(await cloudReady()))return;
+    const names=new Set((await cloudList('inbox')).map(x=>x.name));
+    let n=0;
+    for(const b of cand){
+      if(names.has(b._cloudPath.split('/').pop()))continue; // noch nicht abgerufen
+      if(b._sentSig!==sentSig(b)){b._cloudPath=null;saveD();continue;} // nach dem Senden geändert: behalten
+      for(const f of (b.feststellungen||[])){for(const fid of (f.foto_ids||[])){try{await delFotoIDB(fid);}catch(e){}}}
+      DATA.begehungen=DATA.begehungen.filter(x=>x.id!==b.id);
+      if(cBegId===b.id&&ge('view-det').classList.contains('on'))nav('ue');
+      n++;
+    }
+    if(n){saveD();renderUe();toast('✓ '+n+' am Desktop abgerufene Begehung(en) vom Handy entfernt');}
+  }catch(e){console.warn('Cleanup:',e&&e.message);}
+  finally{_cleaning=false;}
+}
+window.addEventListener('online',()=>{setTimeout(cloudSyncPending,1500);setTimeout(cloudCleanupSent,3000);});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){setTimeout(cloudSyncPending,1000);setTimeout(cloudCleanupSent,3000);}});
 
 // GPS Koordinaten
 let cGpsLat=null,cGpsLng=null;
@@ -884,7 +926,7 @@ function autoGPS(){
   navigator.geolocation.getCurrentPosition(pos=>{
     cGpsLat=pos.coords.latitude;cGpsLng=pos.coords.longitude;
     const el=ge('fc-gps');if(el)el.value=cGpsLat.toFixed(6)+', '+cGpsLng.toFixed(6);
-  },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+  },()=>{},{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
 }
 function refreshGPS(){
   if(!navigator.geolocation){toast('GPS nicht verfügbar');return;}
@@ -893,7 +935,7 @@ function refreshGPS(){
     cGpsLat=pos.coords.latitude;cGpsLng=pos.coords.longitude;
     const el=ge('fc-gps');if(el)el.value=cGpsLat.toFixed(6)+', '+cGpsLng.toFixed(6);
     toast('GPS: '+cGpsLat.toFixed(5)+', '+cGpsLng.toFixed(5));
-  },{enableHighAccuracy:true,timeout:15000,maximumAge:0},{});
+  },()=>{toast('GPS nicht verfügbar – Standortfreigabe prüfen');},{enableHighAccuracy:true,timeout:15000,maximumAge:0});
 }
 
 // Begehungs-Stammdaten direkt aktualisieren
@@ -1395,6 +1437,7 @@ function init(){
   nav('ue');
   if(navigator.onLine)setTimeout(()=>{cloudConfigSync(true);},800);
   setTimeout(cloudSyncPending,2000);
+  setTimeout(cloudCleanupSent,4000);
 }
 init();
 </script>
