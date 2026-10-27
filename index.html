@@ -213,7 +213,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p22';
+const APP_VER='V1.0',PATCH='p23';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -1290,7 +1290,17 @@ function ceHas(b,n){return(b.bt||[]).some(x=>ceKey(x)===ceKey(n));}
 function ceUse(n){return ceBws().filter(b=>ceHas(b,n)).length;}
 function ceHint(t,err){const h=ge('ce-hint');if(h){h.textContent=t||'';h.style.color=err?'var(--red)':'';}}
 function ceChanged(keepHint){cfgEdSave();ceRender();}
-function ceRender(){
+// Scroll-Position beim Neuzeichnen behalten (Fenster springt nicht mehr nach oben)
+function ceKeep(fn){
+  const sc=ge('ct'),root=ge('ce-root'),st=sc?sc.scrollTop:0;
+  if(root)root.style.minHeight=root.offsetHeight+'px';
+  fn();
+  if(sc)sc.scrollTop=st;
+  requestAnimationFrame(()=>{if(root)root.style.minHeight='';if(sc)sc.scrollTop=st;});
+}
+function ceRender(){ceKeep(ceRender0);}
+function ceRenderList(){ceKeep(ceRenderList0);}
+function ceRender0(){
   const root=ge('ce-root');if(!root)return;
   if(!root._ce){
     root._ce=1;
@@ -1329,7 +1339,7 @@ function ceRender(){
   const nb=root.querySelector('.ce-band');if(nb)nb.scrollLeft=sl;
   ceRenderList();
 }
-function ceRenderList(){
+function ceRenderList0(){
   const el=ge('ce-list');if(!el)return;
   const b=ceBws()[_ceSel];if(!b)return;
   const f=ceKey(_ceFilter),all=ceAll();
