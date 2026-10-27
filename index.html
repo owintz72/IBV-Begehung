@@ -90,6 +90,35 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 /* Fortschrittsbalken */
 .prog{height:4px;background:var(--sf2);border-radius:2px;margin-bottom:16px;}
 .prog-bar{height:100%;background:var(--ac);border-radius:2px;transition:width .3s;}
+/* Konfig-Editor Bauwerke/Bauteile */
+#ce-root{display:flex;flex-direction:column;gap:10px;}
+.ce-lbl{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
+.ce-stand{font-size:12px;color:var(--tx2);}
+.ce-band{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 0 8px;scrollbar-width:thin;}
+.ce-chip{flex:none;font:inherit;font-size:14px;font-weight:500;padding:9px 14px;border-radius:99px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);cursor:pointer;white-space:nowrap;min-height:40px;-webkit-appearance:none;}
+.ce-chip small{opacity:.7;margin-left:6px;font-size:11px;}
+.ce-chip[aria-pressed="true"]{background:var(--ac);border-color:var(--ac);color:#fff;}
+.ce-row{display:flex;gap:8px;align-items:stretch;}
+.ce-row input[type=text]{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--bd);border-radius:8px;font:inherit;font-size:15px;background:#fff;color:var(--tx);-webkit-appearance:none;}
+.ce-btn{font:inherit;font-size:14px;font-weight:500;padding:0 14px;border-radius:8px;border:1px solid var(--ac);background:var(--ac);color:#fff;cursor:pointer;min-height:40px;-webkit-appearance:none;}
+.ce-btn.ce-sec{background:var(--sf2);color:var(--tx);border-color:var(--bd);}
+.ce-btn.ce-red{background:var(--red);border-color:var(--red);}
+.ce-btn.ce-sm{min-height:34px;padding:0 10px;font-size:13px;}
+.ce-hint{font-size:12px;color:var(--tx2);min-height:16px;}
+.ce-list{display:flex;flex-direction:column;border:1px solid var(--bd);border-radius:8px;overflow:hidden;background:var(--sf);}
+.ce-letter{padding:4px 12px;font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--tx2);background:var(--sf2);border-top:1px solid var(--bd);}
+.ce-letter:first-child{border-top:0;}
+.ce-item{display:flex;align-items:center;gap:6px;border-top:1px solid var(--bd);min-height:46px;padding-right:6px;}
+.ce-letter+.ce-item{border-top:0;}
+.ce-item.on{background:#ece8f8;}
+.ce-tog{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:6px 8px 6px 12px;background:none;border:0;color:var(--tx);font:inherit;font-size:15px;text-align:left;cursor:pointer;min-height:46px;-webkit-appearance:none;}
+.ce-box{flex:none;width:22px;height:22px;border:2px solid var(--tx2);border-radius:5px;display:grid;place-items:center;font-size:14px;line-height:1;color:transparent;}
+.ce-item.on .ce-box{background:var(--ac);border-color:var(--ac);color:#fff;}
+.ce-name{min-width:0;overflow-wrap:anywhere;flex:1;}
+.ce-cnt{font-size:12px;color:var(--tx2);white-space:nowrap;}
+.ce-acts{display:flex;gap:4px;flex:none;}
+.ce-conf{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;padding:6px 8px 6px 12px;flex:1;}
+.ce-conf input{flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--bd);border-radius:6px;font:inherit;font-size:14px;}
 </style>
 </head>
 <body>
@@ -119,8 +148,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <!-- BEGEHUNG DETAIL -->
     <div class="view" id="view-det"></div>
 
+    <!-- KONFIGURATION BAUWERKE/BAUTEILE -->
+    <div class="view" id="view-konfig"><div class="card"><div id="ce-root"></div></div></div>
+
     <!-- EINSTELLUNGEN -->
     <div class="view" id="view-einst">
+      <div class="card">
+        <h3>Bauwerke &amp; Bauteile</h3>
+        <div class="hint">Bauwerke und Bauteile hier bearbeiten. Die neueste Konfiguration (Handy oder Desktop) gewinnt und wird über die Cloud abgeglichen.</div>
+        <button class="btn bp blg" onclick="nav('konfig')">🏗 Bauwerke &amp; Bauteile bearbeiten</button>
+      </div>
       <div class="card" id="card-icloud">
         <h3>ZIP-Ablage</h3>
         <div id="icloud-hint" class="hint">Auf iOS: ZIP wird über das Share Sheet geteilt → „In Dateien sichern" → iCloud Drive Ordner wählen.</div>
@@ -129,7 +166,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
       <div class="card">
         <h3>☁ Cloud (Supabase)</h3>
-        <div class="hint">Begehungen werden beim Abschließen verschlüsselt in die Cloud gelegt und am Desktop abgerufen. Ohne Anmeldung gilt der bisherige Weg (Teilen/ZIP).</div>
+        <div class="hint">Begehungen werden beim Speichern verschlüsselt in die Cloud gelegt und am Desktop abgerufen. Ohne Anmeldung gilt der bisherige Weg (Teilen/ZIP).</div>
         <div id="cloud-status" style="font-size:13px;color:var(--tx2);margin-bottom:10px"></div>
         <div class="fg"><label>E-Mail</label><input type="email" id="cl-mail" autocomplete="username"></div>
         <div class="fg"><label>Cloud-Passwort (Anmeldung)</label><input type="password" id="cl-pw" autocomplete="current-password"></div>
@@ -139,7 +176,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         </div>
         <div class="fg"><label>Verschlüsselungs-Passwort (auf allen Geräten gleich)</label><input type="password" id="cl-enc" autocomplete="off" placeholder="mind. 8 Zeichen"></div>
         <button class="btn bs blg" onclick="cloudSavePwUi()" style="margin-bottom:8px">🔐 Verschlüsselungs-Passwort speichern</button>
-        <button class="btn bs blg" onclick="cloudConfigUi()">⚙️ Konfiguration aus Cloud aktualisieren</button>
+        <button class="btn bs blg" onclick="cloudConfigUi()">⚙️ Konfiguration mit Cloud abgleichen</button>
       </div>
       <div class="card">
         <h3>Manuell importieren</h3>
@@ -188,7 +225,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p18';
+const APP_VER='V1.0',PATCH='p21';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -373,6 +410,12 @@ function nav(v,bid){
   if(v==='ue'){ge('hd-title').textContent='IBV Begehung Mobil';navHistory=[];renderUe();}
   if(v==='det'&&bid){cBegId=bid;ge('hd-title').textContent='Feststellungen';navHistory.push('ue');renderDet(bid);}
   if(v==='einst'){ge('hd-title').textContent='Einstellungen';renderEinst();}
+  if(v==='konfig'){
+    ge('hd-title').textContent='Bauwerke & Bauteile';
+    const ei=document.querySelector('.bni[data-v="einst"]');if(ei)ei.classList.add('on');
+    if(navHistory[navHistory.length-1]!=='einst')navHistory.push('einst');
+    _ceMode=null;ceRender();
+  }
 }
 function goBack(){
   const prev=navHistory.pop();
@@ -408,13 +451,25 @@ function renderUe(){
       </div>
       <div class="bif">
         <div class="bt">${b.e2_such_id?esc(b.e2_such_id+(b.proj_kurztext?' – '+b.proj_kurztext:'')):'<span style="color:var(--tx2)">'+esc(mobKennzeichnung(b))+'</span>'}</div>
-        <div class="bs2">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit:''} ${b._done?'· <span style="color:var(--ok)">✓ Exportiert</span>':''}</div>
+        <div class="bs2">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit:''} ${b._cloud==='pending'?'· <span style="color:#b8860b">⏳ wartet auf Upload</span>':b._cloud==='sent'?'· <span style="color:var(--ok)">✓ In Cloud</span>':b._done?'· <span style="color:var(--ok)">✓ Exportiert</span>':''}</div>
         <div class="bs2" style="margin-top:1px">${esc(b.ort||'Ort nicht angegeben')} · ${nF} Feststellung${nF!==1?'en':''}</div>
       </div>
+      ${(b._done&&b._cloud!=='pending')?`<button class="btn bs" style="padding:8px 10px;font-size:16px" aria-label="Begehung löschen" onclick="event.stopPropagation();begLoeschen('${b.id}')">🗑</button>`:''}
       <span style="color:var(--tx2);font-size:20px">›</span>
     </div>`;
   });
   ge('view-ue').innerHTML=h;
+}
+
+// Begehung löschen – nur bereits gesendete/exportierte (nicht „wartet auf Upload“)
+async function begLoeschen(id){
+  const b=(DATA.begehungen||[]).find(x=>x.id===id);if(!b)return;
+  if(!b._done||b._cloud==='pending'){toast('Nur gesendete Begehungen lassen sich löschen');return;}
+  const n=(b.feststellungen||[]).length;
+  if(!confirm('Begehung vom '+fD(b.datum)+' mit '+n+' Feststellung'+(n!==1?'en':'')+' und Fotos endgültig vom Handy löschen?\n(Die Daten wurden bereits gesendet.)'))return;
+  for(const f of (b.feststellungen||[])){for(const fid of (f.foto_ids||[])){try{await delFotoIDB(fid);}catch(e){}}}
+  DATA.begehungen=DATA.begehungen.filter(x=>x.id!==id);
+  saveD();renderUe();toast('Begehung gelöscht');
 }
 
 function neueBegehungMobil(){
@@ -487,8 +542,9 @@ async function renderDet(bid){
     </div>`;
   });
 
+  h+=`<button class="btn bp blg" style="margin-top:4px" onclick="openMF(null,'${bid}')">＋ Neue Feststellung</button>`;
   h+=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
-    <button class="btn bok blg" onclick="abschliessen('${bid}')">✓ Begehung abschließen &amp; ZIP erstellen</button>
+    <button class="btn bok blg" onclick="abschliessen('${bid}')">💾 Begehung speichern</button>
   </div>`;
   ge('view-det').innerHTML=h;
   // Fotos asynchron nachladen
@@ -694,13 +750,11 @@ function saveFest(weiter=false){
 // ═══════════════════════════════════════════
 // ABSCHLUSS + ZIP
 // ═══════════════════════════════════════════
-async function abschliessen(bid){
-  const b=DATA.begehungen.find(x=>x.id===bid);if(!b)return;
+async function buildBegehungZip(b){
   if(!window.JSZip){
     ge('hd-title').textContent='ZIP wird erstellt…';
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
   }
-  toast('ZIP wird erstellt…');
   const zip=new JSZip();
   // begehung.json ohne foto_data
   const bClean=JSON.parse(JSON.stringify(b));
@@ -737,17 +791,28 @@ async function abschliessen(bid){
   const uhrZip=(b.uhrzeit||timeStr).replace(':','');
   const ktZip=slugifyMob((b.e2_such_id||'')+'_'+(b.proj_kurztext||''))||'ohne_projekt';
   const fn=`${dateStr}_${uhrZip}_${ktZip}_begehung.zip`;
-  // Cloud (Supabase, Ende-zu-Ende-verschlüsselt) – wenn angemeldet; sonst/bei Fehler bisheriger Weg
-  if(await cloudReady()){
-    try{
-      toast('Upload in die Cloud…');
-      await cloudUpload('inbox/'+_cSafe(fn)+'.enc',blob,false);
-      b._done=true;saveD();renderUe();nav('ue');
-      toast('✓ In Cloud hochgeladen (verschlüsselt)');
-      return;
-    }catch(e){
-      toast('Cloud-Upload fehlgeschlagen ('+((e&&e.message)||e)+') – lokaler Weg');
+  return{blob,fn};
+}
+
+async function abschliessen(bid){
+  const b=DATA.begehungen.find(x=>x.id===bid);if(!b)return;
+  toast('Begehung wird gespeichert…');
+  const{blob,fn}=await buildBegehungZip(b);
+  // Cloud (Supabase, Ende-zu-Ende-verschlüsselt) – wenn angemeldet.
+  // Ohne Netz oder bei Fehler: vormerken, wird automatisch hochgeladen sobald wieder online.
+  if(cloudConfigured()){
+    if(navigator.onLine&&await cloudReady()){
+      try{
+        toast('Upload in die Cloud…');
+        await cloudUpload('inbox/'+_cSafe(fn.replace(/\.zip$/,''))+'_'+Date.now().toString(36)+'.zip.enc',blob,false);
+        b._cloud='sent';b._done=true;saveD();renderUe();nav('ue');
+        toast('✓ In Cloud hochgeladen (verschlüsselt)');
+        return;
+      }catch(e){console.warn('Cloud-Upload fehlgeschlagen:',e&&e.message);}
     }
+    b._cloud='pending';saveD();renderUe();nav('ue');
+    toast('Kein Netz: gespeichert – wird automatisch hochgeladen, sobald wieder online');
+    return;
   }
   // Desktop: in konfigurierten Ordner schreiben
   if(window.showDirectoryPicker){
@@ -788,6 +853,29 @@ async function abschliessen(bid){
 
 // slugify für ZIP-Namen (identisch zu Desk)
 function slugifyMob(text){var t=(text||'').replace(/[\s]+/g,'_');t=t.replace(/[<>:"/|?]/g,'');t=t.replace(/[*]/g,'');t=t.replace(/_+/g,'_');return t.trim();}
+
+
+// ── Cloud-Outbox: vorgemerkte Begehungen automatisch hochladen, sobald online
+let _cloudSyncing=false;
+async function cloudSyncPending(){
+  if(_cloudSyncing||!navigator.onLine)return;
+  const pend=(DATA.begehungen||[]).filter(b=>b._cloud==='pending');
+  if(!pend.length)return;
+  if(!(await cloudReady()))return;
+  _cloudSyncing=true;
+  try{
+    for(const b of pend){
+      try{
+        const{blob,fn}=await buildBegehungZip(b);
+        await cloudUpload('inbox/'+_cSafe(fn.replace(/\.zip$/,''))+'_'+Date.now().toString(36)+'.zip.enc',blob,false);
+        b._cloud='sent';b._done=true;saveD();renderUe();
+        toast('☁ Hochgeladen: '+(b.e2_such_id||mobKennzeichnung(b)));
+      }catch(e){console.warn('Sync später erneut:',e&&e.message);break;}
+    }
+  }finally{_cloudSyncing=false;}
+}
+window.addEventListener('online',()=>{setTimeout(cloudSyncPending,1500);});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(cloudSyncPending,1000);});
 
 // GPS Koordinaten
 let cGpsLat=null,cGpsLng=null;
@@ -966,7 +1054,7 @@ function renderEinst(){
   const iclHint=ge('icloud-hint');
   if(iclBtn)iclBtn.style.display=hasDP?'':'none';
   if(iclHint)iclHint.textContent=hasDP
-    ?'Einmalig Ordner wählen – ZIP wird beim Abschließen automatisch dort abgelegt.'
+    ?'Einmalig Ordner wählen – ZIP wird beim Speichern automatisch dort abgelegt.'
     :'iOS: ZIP wird über das Share Sheet geteilt → „In Dateien sichern" → iCloud Drive Ordner wählen.';
   if(ics)ics.textContent=DATA.settings.icloud_name?'✓ Ordner: '+DATA.settings.icloud_name:'';
   const info=ge('einst-info');
@@ -999,6 +1087,8 @@ const SB_URL='https://xvkojdygavqwnaxakqex.supabase.co';
 const SB_KEY='sb_publishable_08P84brQ4fgTiKcjHV1eGw_Ag75wz3E';
 const SB_BUCKET='begehungen';
 const CL_PW_KEY='ibv_cloud_encpw',CL_MAIL_KEY='ibv_cloud_mail';
+const CL_ON_KEY='ibv_cloud_on';
+function cloudConfigured(){try{return !!(cloudPw()&&(localStorage.getItem(CL_ON_KEY)||localStorage.getItem('sb-xvkojdygavqwnaxakqex-auth-token')));}catch(e){return false;}}
 let _sb=null;
 function cloudPw(){try{return localStorage.getItem(CL_PW_KEY)||'';}catch(e){return '';}}
 function _cSafe(n){return String(n||'').replace(/[^A-Za-z0-9._-]/g,'_');}
@@ -1080,14 +1170,14 @@ async function cloudLoginUi(){
   if(!mail||!pw){toast('E-Mail und Passwort eingeben');return;}
   try{
     await cloudLogin(mail,pw);
-    try{localStorage.setItem(CL_MAIL_KEY,mail);}catch(e){}
+    try{localStorage.setItem(CL_MAIL_KEY,mail);localStorage.setItem(CL_ON_KEY,'1');}catch(e){}
     ge('cl-pw').value='';toast('✓ Angemeldet');
   }catch(e){toast('Anmeldung fehlgeschlagen: '+(e.message||e));}
   renderCloudStatus();
   if(typeof cloudAfterLogin==='function')cloudAfterLogin();
 }
 async function cloudLogoutUi(){
-  try{await cloudLogout();toast('Abgemeldet');}catch(e){toast('Fehler: '+(e.message||e));}
+  try{await cloudLogout();try{localStorage.removeItem(CL_ON_KEY);}catch(e){}toast('Abgemeldet');}catch(e){toast('Fehler: '+(e.message||e));}
   renderCloudStatus();
 }
 function cloudSavePwUi(){
@@ -1099,24 +1189,191 @@ function cloudSavePwUi(){
   if(typeof cloudAfterLogin==='function')cloudAfterLogin();
 }
 
-// ── Mobile: Konfiguration aus Cloud holen (Desktop → Cloud → Mobile)
-async function cloudConfigHolen(silent){
+// ── Konfiguration: Handy ↔ Cloud ↔ Desktop, die NEUESTE gewinnt (Marker: konfig._updated, ISO-Zeit)
+function mobKonfigPayload(){
+  const c=JSON.parse(JSON.stringify(CFG||dfltCfg()));
+  c.feststellungsarten=(c.feststellungsarten||[]).filter(x=>x.id!==FA_DEFAULT_ID);
+  c._meta={version:'1.0',exportedAt:new Date().toISOString(),source:'IBV_Begehung_Mobil'};
+  return c;
+}
+let _cfgBusy=false;
+async function cloudConfigSync(silent){
+  if(_cfgBusy)return;
+  _cfgBusy=true;
   try{
+    if(!navigator.onLine){if(!silent)toast('Kein Netz: Abgleich erfolgt automatisch später');return;}
     if(!(await cloudReady())){if(!silent)toast('Cloud: bitte erst anmelden und Verschlüsselungs-Passwort speichern');return;}
-    const blob=await cloudDownload('config/begehung_config.enc');
-    const text=await blob.text();
-    const alt=JSON.stringify(DATA.konfig||null);
-    importCfgText(text);
-    const neu=JSON.stringify(DATA.konfig||null);
-    if(!silent||alt!==neu)toast(alt!==neu?'✓ Konfiguration aktualisiert':'Konfiguration ist aktuell');
-    renderEinst();
+    const hat=(await cloudList('config')).some(x=>x.name==='begehung_config.enc');
+    let cloud=null;
+    if(hat)cloud=JSON.parse(await (await cloudDownload('config/begehung_config.enc')).text());
+    const lt=(DATA.konfig&&DATA.konfig._updated)||'',ct=(cloud&&cloud._updated)||'';
+    if(cloud&&(!DATA.konfig||ct>lt)){
+      importCfgText(JSON.stringify(cloud));
+      toast('✓ Neuere Konfiguration aus Cloud übernommen');
+      renderEinst();if(ge('view-konfig').classList.contains('on'))ceRender();
+    }else if(DATA.konfig&&lt&&(!cloud||lt>ct)){
+      await cloudUpload('config/begehung_config.enc',new Blob([JSON.stringify(mobKonfigPayload())],{type:'application/json'}),true);
+      toast('✓ Konfiguration in die Cloud hochgeladen');
+    }else if(!silent)toast('Konfiguration ist aktuell');
   }catch(e){
-    const m=(e&&e.message)||String(e);
-    if(!silent)toast('Konfig aus Cloud: '+(/not found|Object/i.test(m)?'noch keine Konfiguration in der Cloud (am Desktop speichern)':m));
+    if(!silent)toast('Konfig-Abgleich: '+((e&&e.message)||e));
+  }finally{_cfgBusy=false;}
+}
+let _cfgT=null;
+function cloudConfigSyncSoon(){clearTimeout(_cfgT);_cfgT=setTimeout(()=>{cloudConfigSync(true);},1500);}
+function cloudConfigUi(){cloudConfigSync(false);}
+function cloudAfterLogin(){cloudConfigSync(true);}
+window.addEventListener('online',()=>{cloudConfigSync(true);});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')cloudConfigSync(true);});
+
+// Hooks für den Konfig-Editor
+function cfgEdGet(){if(!DATA.konfig)DATA.konfig=CFG;return DATA.konfig;}
+function cfgEdSave(){DATA.konfig._updated=new Date().toISOString();CFG=ensureDefaultFa(DATA.konfig);saveD();cloudConfigSyncSoon();}
+
+// ═══════════════════════════════════════════
+// KONFIG-EDITOR Bauwerke & Bauteile (Desktop und Mobile gleich)
+// Alle Bauteile aller Bauwerke stehen alphabetisch in EINER Liste; Haken = gehört zum gewählten Bauwerk.
+// Erwartet: cfgEdGet() -> Konfig-Objekt, cfgEdSave() -> speichern + Stand setzen + Sync anstoßen.
+// ═══════════════════════════════════════════
+let _ceSel=0,_ceMode=null,_ceFilter='';
+function ceNorm(s){return String(s==null?'':s).trim().replace(/\s+/g,' ');}
+function ceKey(s){return ceNorm(s).toLocaleLowerCase('de');}
+function ceBws(){const c=cfgEdGet();if(!c.bauwerke)c.bauwerke=[];return c.bauwerke;}
+function ceAll(){
+  const m={};
+  ceBws().forEach(b=>(b.bt||[]).forEach(x=>{const k=ceKey(x);if(k&&!m[k])m[k]=ceNorm(x);}));
+  return Object.keys(m).map(k=>m[k]).sort((a,b)=>a.localeCompare(b,'de',{sensitivity:'base'}));
+}
+function ceHas(b,n){return(b.bt||[]).some(x=>ceKey(x)===ceKey(n));}
+function ceUse(n){return ceBws().filter(b=>ceHas(b,n)).length;}
+function ceHint(t,err){const h=ge('ce-hint');if(h){h.textContent=t||'';h.style.color=err?'var(--red)':'';}}
+function ceChanged(keepHint){cfgEdSave();ceRender();}
+function ceRender(){
+  const root=ge('ce-root');if(!root)return;
+  if(!root._ce){
+    root._ce=1;
+    root.addEventListener('click',ceClick);
+    root.addEventListener('input',e=>{if(e.target.id==='ce-filter'){_ceFilter=e.target.value;ceRenderList();}});
+    root.addEventListener('change',ceChange);
+    root.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.enter){e.preventDefault();const t=ge(e.target.dataset.enter);if(t)t.click();}});
+  }
+  const bws=ceBws();
+  if(_ceSel>=bws.length)_ceSel=Math.max(0,bws.length-1);
+  const band=root.querySelector('.ce-band'),sl=band?band.scrollLeft:0;
+  const c=cfgEdGet();
+  let h='<div class="ce-stand">Konfig-Stand: '+(c._updated?esc(fDT(c._updated)):'unverändert')+'</div>';
+  h+='<div class="ce-lbl">1 · Bauwerk wählen</div><div class="ce-band">'+
+    bws.map((b,i)=>'<button class="ce-chip" data-bw="'+i+'" aria-pressed="'+(i===_ceSel)+'">'+esc(b.name)+'<small>'+(b.bt||[]).length+'</small></button>').join('')+'</div>';
+  const b=bws[_ceSel];
+  if(b){
+    if(_ceMode&&_ceMode.t==='delbw'){
+      h+='<div class="ce-row" style="align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:140px;font-size:13px">„'+esc(b.name)+'“ löschen? Die Bauteile bleiben in der Liste, falls andere Bauwerke sie nutzen.</span><button class="ce-btn ce-red ce-sm" data-dodelbw="1">Löschen</button><button class="ce-btn ce-sec ce-sm" data-cancel="1">Abbrechen</button></div>';
+    }else{
+      h+='<div class="ce-row"><input type="text" id="ce-bwname" value="'+esc(b.name)+'" data-bwname="1" aria-label="Name des gewählten Bauwerks"><button class="ce-btn ce-sec" data-delbw="1" title="Bauwerk löschen" aria-label="Bauwerk löschen">🗑</button></div>';
+    }
+  }
+  h+='<div class="ce-row"><input type="text" id="ce-bwnew" placeholder="Neues Bauwerk…" data-enter="ce-bwadd" autocomplete="off"><button class="ce-btn" id="ce-bwadd" data-bwadd="1">Anlegen</button></div>';
+  if(b){
+    h+='<div class="ce-lbl" style="margin-top:6px">2 · Bauteile von „'+esc(b.name)+'“</div>'+
+       '<div class="ce-hint" style="margin-top:-6px">Alle Bauteile aller Bauwerke, alphabetisch. Haken = gehört zu diesem Bauwerk.</div>'+
+       '<div class="ce-row" style="align-items:center"><input type="text" id="ce-filter" placeholder="Bauteile filtern…" value="'+esc(_ceFilter)+'" autocomplete="off"><span class="ce-cnt" id="ce-sum"></span></div>'+
+       '<div class="ce-list" id="ce-list"></div>'+
+       '<div class="ce-row"><input type="text" id="ce-btnew" placeholder="Neues Bauteil, z. B. Flügelmauer" data-enter="ce-btadd" autocomplete="off"><button class="ce-btn" id="ce-btadd" data-btadd="1">Anlegen</button></div>';
+  }else{
+    h+='<div class="ce-hint">Noch kein Bauwerk. Oben eines anlegen.</div>';
+  }
+  h+='<div class="ce-hint" id="ce-hint"></div>';
+  root.innerHTML=h;
+  const nb=root.querySelector('.ce-band');if(nb)nb.scrollLeft=sl;
+  ceRenderList();
+}
+function ceRenderList(){
+  const el=ge('ce-list');if(!el)return;
+  const b=ceBws()[_ceSel];if(!b)return;
+  const f=ceKey(_ceFilter),all=ceAll();
+  let out='',last='';
+  all.forEach(name=>{
+    if(f&&ceKey(name).indexOf(f)<0)return;
+    const L=name.charAt(0).toLocaleUpperCase('de');
+    if(L!==last){out+='<div class="ce-letter">'+esc(L)+'</div>';last=L;}
+    const on=ceHas(b,name),u=ceUse(name),en=esc(name);
+    if(_ceMode&&_ceMode.name===name&&_ceMode.t==='delbt'){
+      out+='<div class="ce-item"><div class="ce-conf"><span>„'+en+'“ aus allen '+u+' Bauwerken entfernen?</span><button class="ce-btn ce-red ce-sm" data-dodelbt="'+en+'">Entfernen</button><button class="ce-btn ce-sec ce-sm" data-cancel="1">Abbrechen</button></div></div>';
+    }else if(_ceMode&&_ceMode.name===name&&_ceMode.t==='renbt'){
+      out+='<div class="ce-item"><div class="ce-conf"><input type="text" id="ce-ren" value="'+en+'" data-enter="ce-dorenbt" aria-label="Neuer Name"><button class="ce-btn ce-sm" id="ce-dorenbt" data-dorenbt="'+en+'">Umbenennen</button><button class="ce-btn ce-sec ce-sm" data-cancel="1">Abbrechen</button></div></div>';
+    }else{
+      out+='<div class="ce-item'+(on?' on':'')+'"><button class="ce-tog" data-tog="'+en+'" role="checkbox" aria-checked="'+on+'"><span class="ce-box">✓</span><span class="ce-name">'+en+'</span><span class="ce-cnt">'+u+'×</span></button><span class="ce-acts"><button class="ce-btn ce-sec ce-sm" data-renbt="'+en+'" aria-label="'+en+' umbenennen">✎</button><button class="ce-btn ce-sec ce-sm" data-delbt="'+en+'" aria-label="'+en+' löschen">🗑</button></span></div>';
+    }
+  });
+  el.innerHTML=out||'<div class="ce-letter">Kein Treffer</div>';
+  const s=ge('ce-sum');if(s)s.textContent=(b.bt||[]).length+' von '+all.length+' gewählt';
+  const r=ge('ce-ren');if(r){r.focus();r.select();}
+}
+function ceChange(e){
+  const t=e.target;
+  if(t.dataset&&t.dataset.bwname){
+    const b=ceBws()[_ceSel];const v=ceNorm(t.value);
+    if(!b)return;
+    if(!v){t.value=b.name;ceHint('Name darf nicht leer sein.',true);return;}
+    if(v===b.name)return;
+    if(ceBws().some((x,i)=>i!==_ceSel&&ceKey(x.name)===ceKey(v))){t.value=b.name;ceHint('„'+v+'“ gibt es schon.',true);return;}
+    b.name=v;ceChanged();
   }
 }
-function cloudConfigUi(){cloudConfigHolen(false);}
-function cloudAfterLogin(){cloudConfigHolen(true);}
+function ceClick(e){
+  const el=e.target.closest('button');if(!el)return;
+  const d=el.dataset,bws=ceBws(),b=bws[_ceSel];
+  if(d.bw!==undefined){_ceSel=+d.bw;_ceMode=null;ceRender();return;}
+  if(d.tog!==undefined&&b){
+    if(ceHas(b,d.tog))b.bt=(b.bt||[]).filter(x=>ceKey(x)!==ceKey(d.tog));
+    else{if(!b.bt)b.bt=[];b.bt.push(d.tog);}
+    ceChanged();return;
+  }
+  if(d.renbt!==undefined){_ceMode={t:'renbt',name:d.renbt};ceRenderList();return;}
+  if(d.delbt!==undefined){_ceMode={t:'delbt',name:d.delbt};ceRenderList();return;}
+  if(d.cancel){_ceMode=null;ceRender();return;}
+  if(d.delbw){_ceMode={t:'delbw'};ceRender();return;}
+  if(d.dodelbw&&b){bws.splice(_ceSel,1);_ceMode=null;_ceSel=Math.max(0,_ceSel-1);ceChanged();ceHint('Bauwerk gelöscht.');return;}
+  if(d.dodelbt!==undefined){
+    bws.forEach(x=>{x.bt=(x.bt||[]).filter(y=>ceKey(y)!==ceKey(d.dodelbt));});
+    _ceMode=null;ceChanged();ceHint('„'+d.dodelbt+'“ entfernt.');return;
+  }
+  if(d.dorenbt!==undefined){
+    const nw=ceNorm((ge('ce-ren')||{}).value),old=d.dorenbt;
+    if(!nw)return;
+    const merge=ceKey(nw)!==ceKey(old)&&ceAll().some(x=>ceKey(x)===ceKey(nw));
+    bws.forEach(x=>{
+      const seen={},res=[];
+      (x.bt||[]).forEach(y=>{const n=ceKey(y)===ceKey(old)?nw:y;const k=ceKey(n);if(!seen[k]){seen[k]=1;res.push(n);}});
+      x.bt=res;
+    });
+    _ceMode=null;ceChanged();ceHint(merge?'Zusammengeführt mit vorhandenem „'+nw+'“.':'Umbenannt in allen Bauwerken.');return;
+  }
+  if(d.bwadd){
+    const inp=ge('ce-bwnew'),v=ceNorm(inp.value);
+    if(!v){ceHint('Bitte einen Namen eingeben.',true);return;}
+    const i=bws.findIndex(x=>ceKey(x.name)===ceKey(v));
+    if(i>=0){_ceSel=i;_ceMode=null;ceRender();ceHint('Gibt es schon, wurde ausgewählt.');return;}
+    bws.push({id:'BW'+(Date.now()%1000000),name:v,bt:[]});
+    _ceSel=bws.length-1;_ceMode=null;ceChanged();
+    ceHint('Angelegt. Jetzt unten Bauteile anhaken.');
+    const band=document.querySelector('#ce-root .ce-band');if(band)band.scrollLeft=band.scrollWidth;
+    return;
+  }
+  if(d.btadd&&b){
+    const inp=ge('ce-btnew'),v=ceNorm(inp.value);
+    if(!v){ceHint('Bitte einen Namen eingeben.',true);return;}
+    const ex=ceAll().find(x=>ceKey(x)===ceKey(v));
+    let msg;
+    if(ex){
+      if(!ceHas(b,ex)){if(!b.bt)b.bt=[];b.bt.push(ex);ceChanged();msg='„'+ex+'“ gab es schon (Schreibweise übernommen) und wurde angehakt.';}
+      else{msg='„'+ex+'“ ist hier schon angehakt.';inp.value='';ceHint(msg);return;}
+    }else{if(!b.bt)b.bt=[];b.bt.push(v);ceChanged();msg='„'+v+'“ angelegt und angehakt.';}
+    ceHint(msg);
+    const f=ge('ce-btnew');if(f)f.focus();
+    return;
+  }
+}
 
 // ═══════════════════════════════════════════
 // LOADER
@@ -1136,7 +1393,8 @@ function init(){
   ge('vb').textContent=APP_VER+' '+PATCH;
   hideLoader();
   nav('ue');
-  if(navigator.onLine)setTimeout(()=>{cloudConfigHolen(true);},800);
+  if(navigator.onLine)setTimeout(()=>{cloudConfigSync(true);},800);
+  setTimeout(cloudSyncPending,2000);
 }
 init();
 </script>
