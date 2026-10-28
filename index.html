@@ -117,6 +117,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .ce-name{min-width:0;overflow-wrap:anywhere;flex:1;}
 .ce-cnt{font-size:12px;color:var(--tx2);white-space:nowrap;}
 .ce-acts{display:flex;gap:4px;flex:none;}
+.ce-uses{flex:none;font:inherit;font-size:12px;color:var(--ac);background:#ece8f8;border:1px solid var(--bd);border-radius:99px;padding:4px 9px;min-height:30px;cursor:pointer;white-space:nowrap;-webkit-appearance:none;}
+.ce-uses.open{background:var(--ac);color:#fff;border-color:var(--ac);}
+.ce-panel{background:var(--sf2);border-top:1px dashed var(--bd);padding:6px 12px 10px 46px;display:flex;flex-direction:column;gap:2px;}
+.ce-panel .ce-pl{font-size:11px;color:var(--tx2);margin-bottom:2px;}
+.ce-panel button{display:flex;align-items:center;gap:10px;background:none;border:0;font:inherit;font-size:14px;color:var(--tx);text-align:left;padding:7px 0;cursor:pointer;min-height:38px;-webkit-appearance:none;}
+.ce-item.on .ce-uses{background:#fff;}
 .ce-conf{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;padding:6px 8px 6px 12px;flex:1;}
 .ce-conf input{flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--bd);border-radius:6px;font:inherit;font-size:14px;}
 .bni.fab{color:#c8bef0;}
@@ -213,7 +219,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p24';
+const APP_VER='V1.0',PATCH='p25';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -1239,6 +1245,24 @@ function mobKonfigPayload(){
   return c;
 }
 let _cfgBusy=false;
+// Beim ersten Abgleich eines Handys zählt die Cloud (das Handy kennt sonst nur die Standard-Konfiguration).
+// Lokale Ergänzungen (neue Bauwerke/Bauteile, die nicht zur Standard-Konfiguration gehören) bleiben erhalten.
+function mergeLokaleErgaenzungen(cloud,lokal){
+  const dflt=dfltCfg().bauwerke;let changed=false;
+  (lokal.bauwerke||[]).forEach(lb=>{
+    const db=dflt.find(x=>ceKey(x.name)===ceKey(lb.name));
+    const cb=(cloud.bauwerke||[]).find(x=>ceKey(x.name)===ceKey(lb.name));
+    if(!cb){
+      if(db)return; // Standard-Bauwerk, das es in der Cloud nicht gibt: nicht zurückholen
+      (cloud.bauwerke=cloud.bauwerke||[]).push(JSON.parse(JSON.stringify(lb)));changed=true;return;
+    }
+    (lb.bt||[]).forEach(t=>{
+      if(db&&(db.bt||[]).some(y=>ceKey(y)===ceKey(t)))return;
+      if(!(cb.bt||[]).some(y=>ceKey(y)===ceKey(t))){(cb.bt=cb.bt||[]).push(t);changed=true;}
+    });
+  });
+  return changed;
+}
 async function cloudConfigSync(silent){
   if(_cfgBusy)return;
   _cfgBusy=true;
@@ -1248,12 +1272,21 @@ async function cloudConfigSync(silent){
     const hat=(await cloudList('config')).some(x=>x.name==='begehung_config.enc');
     let cloud=null;
     if(hat)cloud=JSON.parse(await (await cloudDownload('config/begehung_config.enc')).text());
+    const first=!DATA.cfgSynced;
     const lt=(DATA.konfig&&DATA.konfig._updated)||'',ct=(cloud&&cloud._updated)||'';
-    if(cloud&&(!DATA.konfig||ct>lt)){
+    if(cloud&&(!DATA.konfig||first||ct>lt)){
+      const alt=DATA.konfig?JSON.stringify(DATA.konfig.bauwerke||[]):'';
+      if(DATA.konfig&&alt!==JSON.stringify(cloud.bauwerke||[])){DATA.konfigPrev=JSON.parse(JSON.stringify(DATA.konfig));DATA.konfigPrev._savedAt=new Date().toISOString();}
+      const erg=(first&&DATA.konfig)?mergeLokaleErgaenzungen(cloud,DATA.konfig):false;
+      if(erg)cloud._updated=new Date().toISOString();
       importCfgText(JSON.stringify(cloud));
-      toast('✓ Neuere Konfiguration aus Cloud übernommen');
+      DATA.cfgSynced=true;saveD();
+      if(erg){
+        await cloudUpload('config/begehung_config.enc',new Blob([JSON.stringify(mobKonfigPayload())],{type:'application/json'}),true);
+        toast('✓ Konfiguration aus Cloud übernommen, deine Ergänzungen bleiben');
+      }else toast('✓ Konfiguration aus Cloud übernommen');
       renderEinst();if(ge('view-konfig').classList.contains('on'))ceRender();
-    }else if(DATA.konfig&&lt&&(!cloud||lt>ct)){
+    }else if(DATA.cfgSynced&&DATA.konfig&&lt&&(!cloud||lt>ct)){
       await cloudUpload('config/begehung_config.enc',new Blob([JSON.stringify(mobKonfigPayload())],{type:'application/json'}),true);
       toast('✓ Konfiguration in die Cloud hochgeladen');
     }else if(!silent)toast('Konfiguration ist aktuell');
@@ -1270,6 +1303,14 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 
 // Hooks für den Konfig-Editor
 function cfgEdGet(){if(!DATA.konfig)DATA.konfig=CFG;return DATA.konfig;}
+function cfgEdPrev(){return DATA.konfigPrev||null;}
+function cfgEdRestore(){
+  const prev=DATA.konfigPrev;if(!prev)return;
+  const cur=JSON.parse(JSON.stringify(DATA.konfig||CFG));cur._savedAt=new Date().toISOString();
+  const nk=JSON.parse(JSON.stringify(prev));delete nk._savedAt;
+  DATA.konfig=nk;DATA.konfigPrev=cur;DATA.cfgSynced=true;
+  cfgEdSave();
+}
 function cfgEdSave(){DATA.konfig._updated=new Date().toISOString();CFG=ensureDefaultFa(DATA.konfig);saveD();cloudConfigSyncSoon();}
 
 // ═══════════════════════════════════════════
@@ -1314,6 +1355,11 @@ function ceRender0(){
   const band=root.querySelector('.ce-band'),sl=band?band.scrollLeft:0;
   const c=cfgEdGet();
   let h='<div class="ce-stand">Konfig-Stand: '+(c._updated?esc(fDT(c._updated)):'unverändert')+'</div>';
+  const prev=cfgEdPrev();
+  if(prev){
+    if(_ceMode&&_ceMode.t==='restore')h+='<div class="ce-row" style="align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:140px;font-size:13px">Auf den Stand vor dem letzten Abgleich ('+esc(prev._savedAt?fDT(prev._savedAt):'älter')+') zurück? Er gilt danach als neueste Konfiguration.</span><button class="ce-btn ce-sm" data-dorestore="1">Zurück</button><button class="ce-btn ce-sec ce-sm" data-cancel="1">Abbrechen</button></div>';
+    else h+='<div><button class="ce-btn ce-sec ce-sm" data-restore="1">↩ Vorherige Konfiguration wiederherstellen</button></div>';
+  }
   h+='<div class="ce-lbl">1 · Bauwerk wählen</div><div class="ce-band">'+
     bws.map((b,i)=>'<button class="ce-chip" data-bw="'+i+'" aria-pressed="'+(i===_ceSel)+'">'+esc(b.name)+'<small>'+(b.bt||[]).length+'</small></button>').join('')+'</div>';
   const b=bws[_ceSel];
@@ -1354,7 +1400,11 @@ function ceRenderList0(){
     }else if(_ceMode&&_ceMode.name===name&&_ceMode.t==='renbt'){
       out+='<div class="ce-item"><div class="ce-conf"><input type="text" id="ce-ren" value="'+en+'" data-enter="ce-dorenbt" aria-label="Neuer Name"><button class="ce-btn ce-sm" id="ce-dorenbt" data-dorenbt="'+en+'">Umbenennen</button><button class="ce-btn ce-sec ce-sm" data-cancel="1">Abbrechen</button></div></div>';
     }else{
-      out+='<div class="ce-item'+(on?' on':'')+'"><button class="ce-tog" data-tog="'+en+'" role="checkbox" aria-checked="'+on+'"><span class="ce-box">✓</span><span class="ce-name">'+en+'</span><span class="ce-cnt">'+u+'×</span></button><span class="ce-acts"><button class="ce-btn ce-sec ce-sm" data-renbt="'+en+'" aria-label="'+en+' umbenennen">✎</button><button class="ce-btn ce-sec ce-sm" data-delbt="'+en+'" aria-label="'+en+' löschen">🗑</button></span></div>';
+      const open=_ceMode&&_ceMode.t==='uses'&&_ceMode.name===name;
+      out+='<div class="ce-item'+(on?' on':'')+'"><button class="ce-tog" data-tog="'+en+'" role="checkbox" aria-checked="'+on+'"><span class="ce-box">✓</span><span class="ce-name">'+en+'</span></button><button class="ce-uses'+(open?' open':'')+'" data-uses="'+en+'" aria-expanded="'+!!open+'" aria-label="In '+u+' Bauwerken verwendet. Bauwerke zuweisen">'+u+'× ▾</button><span class="ce-acts"><button class="ce-btn ce-sec ce-sm" data-renbt="'+en+'" aria-label="'+en+' umbenennen">✎</button><button class="ce-btn ce-sec ce-sm" data-delbt="'+en+'" aria-label="'+en+' löschen">🗑</button></span></div>';
+      if(open){
+        out+='<div class="ce-panel"><div class="ce-pl">„'+en+'“ gehört zu:</div>'+ceBws().map((x,i)=>'<button data-asg="'+i+'" role="checkbox" aria-checked="'+ceHas(x,name)+'"><span class="ce-box" style="'+(ceHas(x,name)?'background:var(--ac);border-color:var(--ac);color:#fff':'')+'">✓</span><span class="ce-name">'+esc(x.name)+'</span></button>').join('')+'</div>';
+      }
     }
   });
   el.innerHTML=out||'<div class="ce-letter">Kein Treffer</div>';
@@ -1381,6 +1431,18 @@ function ceClick(e){
     else{if(!b.bt)b.bt=[];b.bt.push(d.tog);}
     ceChanged();return;
   }
+  if(d.uses!==undefined){_ceMode=(_ceMode&&_ceMode.t==='uses'&&_ceMode.name===d.uses)?null:{t:'uses',name:d.uses};ceRenderList();return;}
+  if(d.asg!==undefined&&_ceMode&&_ceMode.t==='uses'){
+    const x=bws[+d.asg],nm=_ceMode.name;
+    if(x){
+      if(ceHas(x,nm))x.bt=(x.bt||[]).filter(y=>ceKey(y)!==ceKey(nm));
+      else{if(!x.bt)x.bt=[];x.bt.push(nm);}
+      ceChanged();
+    }
+    return;
+  }
+  if(d.restore){_ceMode={t:'restore'};ceRender();return;}
+  if(d.dorestore){_ceMode=null;cfgEdRestore();ceRender();ceHint('Vorherige Konfiguration wiederhergestellt.');return;}
   if(d.renbt!==undefined){_ceMode={t:'renbt',name:d.renbt};ceRenderList();return;}
   if(d.delbt!==undefined){_ceMode={t:'delbt',name:d.delbt};ceRenderList();return;}
   if(d.cancel){_ceMode=null;ceRender();return;}
