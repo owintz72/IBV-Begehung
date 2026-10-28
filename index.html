@@ -219,7 +219,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p25';
+const APP_VER='V1.0',PATCH='p26';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -1184,7 +1184,7 @@ async function cloudDecrypt(blob){
 async function cloudUpload(path,blob,upsert){
   const sb=await sbClient(),u=await cloudUser();if(!u)throw new Error('Nicht angemeldet');
   const enc=await cloudEncrypt(blob);
-  const{error}=await _cTimeout(sb.storage.from(SB_BUCKET).upload(u.id+'/'+path,enc,{upsert:!!upsert,contentType:'application/octet-stream'}),120000,'Upload-Zeitüberschreitung');
+  const{error}=await _cTimeout(sb.storage.from(SB_BUCKET).upload(u.id+'/'+path,enc,{upsert:!!upsert,cacheControl:'0',contentType:'application/octet-stream'}),120000,'Upload-Zeitüberschreitung');
   if(error)throw error;
 }
 async function cloudList(folder){
@@ -1195,8 +1195,20 @@ async function cloudList(folder){
 }
 async function cloudDownload(path){
   const sb=await sbClient(),u=await cloudUser();if(!u)throw new Error('Nicht angemeldet');
-  const{data,error}=await _cTimeout(sb.storage.from(SB_BUCKET).download(u.id+'/'+path),120000,'Download-Zeitüberschreitung');
-  if(error)throw error;
+  // Frisch laden: signierte URL (eindeutig) + no-store, damit nach einem Überschreiben (Konfiguration)
+  // nicht eine veraltete Kopie aus dem CDN-/Browser-Cache kommt.
+  let data=null;
+  try{
+    const{data:sg,error:e1}=await sb.storage.from(SB_BUCKET).createSignedUrl(u.id+'/'+path,120);
+    if(e1||!sg||!sg.signedUrl)throw e1||new Error('keine URL');
+    const r=await _cTimeout(fetch(sg.signedUrl,{cache:'no-store'}),120000,'Download-Zeitüberschreitung');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    data=await r.blob();
+  }catch(e){
+    const{data:d2,error}=await _cTimeout(sb.storage.from(SB_BUCKET).download(u.id+'/'+path),120000,'Download-Zeitüberschreitung');
+    if(error)throw error;
+    data=d2;
+  }
   return await cloudDecrypt(data);
 }
 async function cloudRemove(path){
