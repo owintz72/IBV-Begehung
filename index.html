@@ -213,7 +213,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p23';
+const APP_VER='V1.0',PATCH='p24';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -1450,6 +1450,10 @@ function init(){
   setTimeout(cloudCleanupSent,4000);
 }
 init();
+// Offline-Fähigkeit: Service Worker (Datei sw.js liegt neben index.html)
+if('serviceWorker' in navigator&&/^https?:/.test(location.protocol)){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW:',e&&e.message));});
+}
 </script>
 </body>
 </html>
