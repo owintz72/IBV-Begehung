@@ -222,7 +222,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p27';
+const APP_VER='V1.0',PATCH='p28';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -616,18 +616,20 @@ function renderMFContent(f,begForDefault){
   const curBwId=f?f.bw_id:(begForDefault?begForDefault._lastBwId||'':'');
   const curBwFt=f?f.bw_freitext||'':(begForDefault?begForDefault._lastBwFreitext||'':'');
   const curBw=bws.find(b=>b.id===curBwId);
-  const bts=curBw?curBw.bt||[]:[];
+  const bts=sortDe(curBw?curBw.bt||[]:[]);
+  // Bauteil: beim Bearbeiten der gespeicherte Wert, bei Neuerfassung das zuletzt gewählte
+  const curBt=f?(f.bt_freitext||f.bauteil||''):(begForDefault?begForDefault._lastBt||'':'');
 
   let h='';
   // Bauwerk
   h+=`<div class="fg"><label>Bauwerk</label>
-    <select id="fc-bw" onchange="onBwChange()">${bws.map(b=>`<option value="${esc(b.id)}" ${b.id===curBwId?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
+    <select id="fc-bw" onchange="onBwChange()">${[...bws].sort((a,c)=>String(a.name).localeCompare(String(c.name),'de',{sensitivity:'base'})).map(b=>`<option value="${esc(b.id)}" ${b.id===curBwId?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
     <input type="text" id="fc-bw-txt" value="${esc(curBwFt)}" placeholder="Oder neu tippen – Vorschläge erscheinen" autocomplete="off" oninput="sgUpdate('bw')" style="margin-top:6px">
     <div id="sg-bw"></div>
   </div>`;
   // Bauteil
   h+=`<div class="fg"><label>Bauteil</label>
-    <select id="fc-bt">${bts.length?bts.map(bt=>{const sel=(f&&(f.bt_freitext||f.bauteil)===bt)?'selected':'';return '<option value="'+esc(bt)+'" '+sel+'>'+esc(bt)+'</option>';}).join(''):
+    <select id="fc-bt">${bts.length?bts.map(bt=>{const sel=(curBt&&ceKey(curBt)===ceKey(bt))?'selected':'';return '<option value="'+esc(bt)+'" '+sel+'>'+esc(bt)+'</option>';}).join(''):
     '<option value="">— Bauwerk wählen —</option>'}</select>
     <input type="text" id="fc-bt-txt" value="${esc(f?f.bt_freitext||'':'')}" placeholder="Oder neu tippen – Vorschläge erscheinen" autocomplete="off" oninput="sgUpdate('bt')" style="margin-top:6px">
     <div id="sg-bt"></div>
@@ -665,8 +667,9 @@ function renderMFContent(f,begForDefault){
     <textarea id="fc-desc" placeholder="Beschreibung…">${esc(f?f.beschreibung||'':'')}</textarea>
   </div>`;
   ge('mf-content').innerHTML=h;
-  updateBts();
+  updateBts(curBt);
 }
+function sortDe(a){return [...a].sort((x,y)=>String(x).localeCompare(String(y),'de',{sensitivity:'base'}));}
 
 function onBwChange(){updateBts();}
 // Vorschläge beim Tippen (Bauwerk / Bauteil), damit nichts doppelt angelegt wird
@@ -703,13 +706,16 @@ function sgPick(kind,name){
     if(opt)ge('sg-bt').innerHTML='';
   }
 }
-function updateBts(){
+function updateBts(want){
   const bwId=ge('fc-bw')?ge('fc-bw').value:'';
   const bw=CFG.bauwerke.find(b=>b.id===bwId);
-  const bts=bw?bw.bt||[]:[];
+  const bts=sortDe(bw?bw.bt||[]:[]);
   const sel=ge('fc-bt');
   if(!sel)return;
+  const keep=want||sel.value; // gewünschten oder bisher gewählten Wert behalten, wenn er im neuen Bauwerk vorkommt
+  const hit=bts.find(x=>ceKey(x)===ceKey(keep||''));
   sel.innerHTML=bts.length?bts.map(bt=>`<option value="${esc(bt)}">${esc(bt)}</option>`).join(''):'<option value="">—</option>';
+  if(hit)sel.value=hit;
 }
 
 // takePic() entfernt p04 — label for= übernimmt direkt
@@ -789,7 +795,7 @@ function saveFest(weiter=false){
   else{b.feststellungen.push(obj);}
   // Nur bei Neuerfassung: Bauwerk als Vorschlag für die nächste neue Feststellung merken
   // (bereits erfasste Feststellungen bleiben beim Bearbeiten unverändert)
-  if(wasNeu){b._lastBwId=obj.bw_id;b._lastBwFreitext=obj.bw_freitext;}
+  if(wasNeu){b._lastBwId=obj.bw_id;b._lastBwFreitext=obj.bw_freitext;b._lastBt=obj.bauteil;}
   saveD();
   if(weiter){
     // Modal offen lassen, neue Feststellung starten
