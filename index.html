@@ -222,7 +222,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p29';
+const APP_VER='V1.0',PATCH='p30';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -563,6 +563,7 @@ async function renderDet(bid){
         ${f.festst_name?`<span class="kb">${esc(f.festst_name)}</span>`:''}
         ${(f.bw_freitext||f.bw_name)?`<span class="kb">${esc(f.bw_freitext||f.bw_name||'')}${(f.bt_freitext||f.bauteil)?' / '+esc(f.bt_freitext||f.bauteil):''}</span>`:''}
       </div>
+      ${(f.km_von||f.km_bis)?`<div style="font-size:12px;color:var(--tx2)">📏 km ${esc(f.km_von||'?')}${f.km_bis?' – '+esc(f.km_bis):''}</div>`:''}
       ${f.lage_text?`<div style="font-size:12px;color:var(--tx2)">📍 ${esc(f.lage_text)}</div>`:''}
       ${f.gps_lat?`<div style="font-size:11px;color:var(--tx2)">🌐 ${f.gps_lat.toFixed(6)}, ${f.gps_lng.toFixed(6)}</div>`:''}
       ${f.beschreibung?`<div style="font-size:13px;margin-top:3px">${esc(f.beschreibung)}</div>`:''}
@@ -645,13 +646,25 @@ function renderMFContent(f,begForDefault){
   const isAnl=!!(begA&&begA.typ==='anlagen');
   if(isAnl){
     const al=anlListeMob(begA);
-    const curNr=f?(f.anl_nr||''):(begA._lastAnlNr||'');
+    const sorted=al?anlSortiert(al.items):[];
+    let curNr=f?(f.anl_nr||''):(begA._lastAnlNr||'');
+    let it0=sorted.find(x=>String(x.nr)===String(curNr))||(f?null:sorted[0])||null;
+    const kv=f&&f.km_von!==undefined?f.km_von:(it0?anlKmFmt(it0.von):'');
+    const kb=f&&f.km_bis!==undefined?f.km_bis:(it0?anlKmFmt(it0.bis):'');
     h+=`<div class="fg"><label>Anlage${al?'':' – Liste nicht auf diesem Gerät (bitte online öffnen)'}</label>
-      <input type="search" id="fc-anl-q" placeholder="Suchen: Nr. oder Text…" autocomplete="off" oninput="anlFilter()">
-      <select id="fc-anl" style="margin-top:6px"></select>
+      <input type="search" id="fc-anl-q" placeholder="Suchen: Nr., km oder Text…" autocomplete="off" oninput="anlFilter()">
+      <select id="fc-anl" onchange="anlSelChange()" style="margin-top:6px"></select>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button type="button" class="btn bs" style="flex:1;padding:9px 6px;font-size:13px" onclick="anlStep(-1)">◀ Vorherige</button>
+        <button type="button" class="btn bs" style="flex:1;padding:9px 6px;font-size:13px" onclick="anlStep(1)">Nächste ▶</button>
+      </div>
       <div id="fc-anl-n" style="font-size:11px;color:var(--tx2);margin-top:4px"></div>
+    </div>
+    <div class="fr" style="gap:8px">
+      <div class="fg"><label>von km</label><input type="text" id="fc-kmv" inputmode="decimal" value="${esc(kv)}" placeholder="–"></div>
+      <div class="fg"><label>bis km</label><input type="text" id="fc-kmb" inputmode="decimal" value="${esc(kb)}" placeholder="–"></div>
     </div>`;
-    window._anlCur=curNr;
+    window._anlCur=curNr||(it0?it0.nr:'');
   }else{
   // Bauwerk
   h+=`<div class="fg"><label>Bauwerk</label>
@@ -700,22 +713,53 @@ function renderMFContent(f,begForDefault){
     <textarea id="fc-desc" placeholder="Beschreibung…">${esc(f?f.beschreibung||'':'')}</textarea>
   </div>`;
   ge('mf-content').innerHTML=h;
-  if(isAnl)anlFilter(window._anlCur);else updateBts(curBt);
+  if(isAnl)anlFilter(window._anlCur||'');else updateBts(curBt);
 }
 function anlListeMob(b){const id=b&&b.anlagenliste&&b.anlagenliste.id;return(DATA.anlagenlisten||[]).find(l=>l.id===id)||null;}
 function anlLabel(it){return it.nr+' – '+it.text;}
+function anlNum(v){const x=parseFloat(String(v==null?'':v).replace(',','.'));return isNaN(x)?null:x;}
+function anlKmFmt(v){const x=anlNum(v);return x==null?'':x.toFixed(3).replace('.',',');}
+function anlSortKey(it){const v=[anlNum(it.von),anlNum(it.bis)].filter(x=>x!=null);return v.length?Math.min(...v):Infinity;}
+function anlSortiert(items){return[...items].sort((x,y)=>{const a=anlSortKey(x),b=anlSortKey(y);if(a!==b)return a<b?-1:1;const nx=parseFloat(x.nr),ny=parseFloat(y.nr);return(isNaN(nx)||isNaN(ny))?String(x.nr).localeCompare(String(y.nr),'de',{numeric:true}):nx-ny;});}
+function anlKmText(it){const a=anlKmFmt(it.von),b=anlKmFmt(it.bis);return a?(b?a+'–'+b:a):'ohne km';}
+function anlOptLabel(it){return anlKmText(it)+' | '+anlLabel(it);}
+function anlSelItem(){
+  const b=DATA.begehungen.find(x=>x.id===cBegId);const al=anlListeMob(b);const sel=ge('fc-anl');
+  return(al&&sel)?al.items.find(x=>String(x.nr)===String(sel.value))||null:null;
+}
+function anlSelChange(){
+  const it=anlSelItem();if(!it)return;
+  if(ge('fc-kmv'))ge('fc-kmv').value=anlKmFmt(it.von);
+  if(ge('fc-kmb'))ge('fc-kmb').value=anlKmFmt(it.bis);
+}
 function anlFilter(want){
   const b=DATA.begehungen.find(x=>x.id===cBegId);const al=anlListeMob(b);
   const sel=ge('fc-anl');if(!sel)return;
   const q=ceKey(ge('fc-anl-q')?ge('fc-anl-q').value:'');
-  const keep=want!==undefined&&want!==null?String(want):sel.value;
-  let items=al?al.items:[];
+  const prev=sel.value;
+  const keep=want!==undefined&&want!==null?String(want):prev;
+  let items=al?anlSortiert(al.items):[];
   const all=items.length;
-  if(q)items=items.filter(it=>ceKey(it.nr+' '+it.text+' '+(it.art||'')).includes(q)||ceKey(it.nr)===q);
-  sel.innerHTML=items.length?items.map(it=>`<option value="${esc(it.nr)}">${esc(anlLabel(it))}</option>`).join(''):'<option value="">— keine Treffer —</option>';
+  if(q){
+    items=items.filter(it=>ceKey(it.nr+' '+it.text+' '+(it.art||'')+' '+anlKmText(it)).includes(q)||ceKey(it.nr)===q);
+    const ex=items.findIndex(it=>ceKey(it.nr)===q);   // genaue Nr. nach oben
+    if(ex>0){const [e]=items.splice(ex,1);items.unshift(e);}
+  }
+  sel.innerHTML=items.length?items.map(it=>`<option value="${esc(it.nr)}">${esc(anlOptLabel(it))}</option>`).join(''):'<option value="">— keine Treffer —</option>';
   const hit=items.find(it=>String(it.nr)===keep);
   if(hit)sel.value=hit.nr;
-  const n=ge('fc-anl-n');if(n)n.textContent=q?(items.length+' von '+all+' Anlagen'):(all+' Anlagen');
+  const n=ge('fc-anl-n');if(n)n.textContent=q?(items.length+' von '+all+' Anlagen'):(all+' Anlagen · nach km sortiert');
+  if(sel.value!==keep&&want===undefined)anlSelChange();   // Auswahl hat sich durch die Suche geändert
+}
+function anlStep(d){
+  const b=DATA.begehungen.find(x=>x.id===cBegId);const al=anlListeMob(b);const sel=ge('fc-anl');
+  if(!al||!sel)return;
+  const sorted=anlSortiert(al.items);
+  const i=sorted.findIndex(x=>String(x.nr)===String(sel.value));
+  const j=Math.max(0,Math.min(sorted.length-1,(i<0?0:i+d)));
+  if(ge('fc-anl-q'))ge('fc-anl-q').value='';
+  anlFilter(sorted[j].nr);anlSelChange();
+  if(i+d<0||i+d>sorted.length-1)toast(d>0?'Letzter Eintrag der Liste':'Erster Eintrag der Liste');
 }
 function sortDe(a){return [...a].sort((x,y)=>String(x).localeCompare(String(y),'de',{sensitivity:'base'}));}
 
@@ -845,7 +889,7 @@ function saveFest(weiter=false){
     status:'offen',
     ts:new Date().toISOString(),
   };
-  if(anlIt){obj.anl_nr=anlIt.nr;obj.anl_text=anlIt.text;obj.bw_id='';obj.bw_name=anlLabel(anlIt);obj.bw_freitext='';obj.bauteil='';obj.bt_freitext='';}
+  if(anlIt){obj.anl_nr=anlIt.nr;obj.anl_text=anlIt.text;obj.bw_id='';obj.bw_name=anlLabel(anlIt);obj.bw_freitext='';obj.bauteil='';obj.bt_freitext='';obj.km_von=ge('fc-kmv')?ge('fc-kmv').value.trim():'';obj.km_bis=ge('fc-kmb')?ge('fc-kmb').value.trim():'';}
   if(cFestIdx!==null){b.feststellungen[cFestIdx]=obj;}
   else{b.feststellungen.push(obj);}
   // Nur bei Neuerfassung: Bauwerk als Vorschlag für die nächste neue Feststellung merken
