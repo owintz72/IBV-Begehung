@@ -222,7 +222,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p28';
+const APP_VER='V1.0',PATCH='p29';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -483,6 +483,24 @@ async function begLoeschen(id){
 }
 
 function neueBegehungMobil(){
+  const l=(DATA.anlagenlisten||[]).filter(x=>x.items&&x.items.length);
+  if(!l.length){neueBegehungMobil2(null);return;}
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:0';
+  ov.innerHTML='<div style="background:var(--sf);color:var(--tx);border-radius:14px 14px 0 0;width:100%;max-width:520px;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 30px rgba(0,0,0,.3)">'
+    +'<div style="font-weight:700;font-size:16px;margin-bottom:12px">Neue Begehung</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px">'
+    +'<button class="btn bp" data-i="-1">Standard (Bauwerk / Bauteil)</button>'
+    +l.map((x,i)=>'<button class="btn bs" data-i="'+i+'">📋 '+esc(x.name)+' <span style="color:var(--tx2);font-size:12px">('+x.items.length+' Anlagen)</span></button>').join('')
+    +'<button class="btn bs" data-i="x" style="margin-top:4px">Abbrechen</button></div></div>';
+  ov.addEventListener('click',e=>{
+    const i=e.target&&e.target.closest&&e.target.closest('[data-i]');
+    if(i){const v=i.getAttribute('data-i');ov.remove();if(v==='x')return;neueBegehungMobil2(v==='-1'?null:l[parseInt(v,10)]);}
+    else if(e.target===ov)ov.remove();
+  });
+  document.body.appendChild(ov);
+}
+function neueBegehungMobil2(liste){
   const now=new Date();
   const b={
     id:uid('BEG'),
@@ -492,6 +510,7 @@ function neueBegehungMobil(){
     ort:'',teilnehmer:'',
     status:'offen',erstellt:now.toISOString(),feststellungen:[]
   };
+  if(liste){b.typ='anlagen';b.anlagenliste={id:liste.id,name:liste.name};}
   DATA.begehungen.push(b);saveD();
   toast('Neue Begehung erstellt');
   nav('det',b.id);
@@ -510,6 +529,7 @@ async function renderDet(bid){
   if(!b){ge('view-det').innerHTML='<div class="hint">Nicht gefunden.</div>';return;}
   const fests=b.feststellungen||[];
   let h=`
+  ${b.typ==='anlagen'?'<div class="hint" style="margin-bottom:10px">📋 Spezial-Begehung · Anlagenliste: <b>'+esc((b.anlagenliste&&b.anlagenliste.name)||'')+'</b></div>':''}
   <div class="card" style="margin-bottom:10px">
     <div style="font-size:13px;font-weight:600;margin-bottom:8px">${b.e2_such_id?esc(b.e2_such_id+(b.proj_kurztext?' – '+b.proj_kurztext:'')):'<span style="color:var(--tx2)">'+esc(mobKennzeichnung(b))+' – wird in Desktop zugeordnet</span>'}</div>
     <div class="fr" style="gap:8px;margin-bottom:8px">
@@ -621,6 +641,18 @@ function renderMFContent(f,begForDefault){
   const curBt=f?(f.bt_freitext||f.bauteil||''):(begForDefault?begForDefault._lastBt||'':'');
 
   let h='';
+  const begA=DATA.begehungen.find(x=>x.id===cBegId);
+  const isAnl=!!(begA&&begA.typ==='anlagen');
+  if(isAnl){
+    const al=anlListeMob(begA);
+    const curNr=f?(f.anl_nr||''):(begA._lastAnlNr||'');
+    h+=`<div class="fg"><label>Anlage${al?'':' – Liste nicht auf diesem Gerät (bitte online öffnen)'}</label>
+      <input type="search" id="fc-anl-q" placeholder="Suchen: Nr. oder Text…" autocomplete="off" oninput="anlFilter()">
+      <select id="fc-anl" style="margin-top:6px"></select>
+      <div id="fc-anl-n" style="font-size:11px;color:var(--tx2);margin-top:4px"></div>
+    </div>`;
+    window._anlCur=curNr;
+  }else{
   // Bauwerk
   h+=`<div class="fg"><label>Bauwerk</label>
     <select id="fc-bw" onchange="onBwChange()">${[...bws].sort((a,c)=>String(a.name).localeCompare(String(c.name),'de',{sensitivity:'base'})).map(b=>`<option value="${esc(b.id)}" ${b.id===curBwId?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
@@ -634,6 +666,7 @@ function renderMFContent(f,begForDefault){
     <input type="text" id="fc-bt-txt" value="${esc(f?f.bt_freitext||'':'')}" placeholder="Oder neu tippen – Vorschläge erscheinen" autocomplete="off" oninput="sgUpdate('bt')" style="margin-top:6px">
     <div id="sg-bt"></div>
   </div>`;
+  }
   // Feststellungsart — bei neuer Feststellung fest auf "Dokumentation" voreingestellt (Dropdown bleibt änderbar)
   const defFa=fas.find(x=>(x.name||'').trim().toLowerCase()===FA_DEFAULT_NAME.toLowerCase());
   const curFaId=f?f.festst_id:(defFa?defFa.id:'');
@@ -667,7 +700,22 @@ function renderMFContent(f,begForDefault){
     <textarea id="fc-desc" placeholder="Beschreibung…">${esc(f?f.beschreibung||'':'')}</textarea>
   </div>`;
   ge('mf-content').innerHTML=h;
-  updateBts(curBt);
+  if(isAnl)anlFilter(window._anlCur);else updateBts(curBt);
+}
+function anlListeMob(b){const id=b&&b.anlagenliste&&b.anlagenliste.id;return(DATA.anlagenlisten||[]).find(l=>l.id===id)||null;}
+function anlLabel(it){return it.nr+' – '+it.text;}
+function anlFilter(want){
+  const b=DATA.begehungen.find(x=>x.id===cBegId);const al=anlListeMob(b);
+  const sel=ge('fc-anl');if(!sel)return;
+  const q=ceKey(ge('fc-anl-q')?ge('fc-anl-q').value:'');
+  const keep=want!==undefined&&want!==null?String(want):sel.value;
+  let items=al?al.items:[];
+  const all=items.length;
+  if(q)items=items.filter(it=>ceKey(it.nr+' '+it.text+' '+(it.art||'')).includes(q)||ceKey(it.nr)===q);
+  sel.innerHTML=items.length?items.map(it=>`<option value="${esc(it.nr)}">${esc(anlLabel(it))}</option>`).join(''):'<option value="">— keine Treffer —</option>';
+  const hit=items.find(it=>String(it.nr)===keep);
+  if(hit)sel.value=hit.nr;
+  const n=ge('fc-anl-n');if(n)n.textContent=q?(items.length+' von '+all+' Anlagen'):(all+' Anlagen');
 }
 function sortDe(a){return [...a].sort((x,y)=>String(x).localeCompare(String(y),'de',{sensitivity:'base'}));}
 
@@ -774,6 +822,12 @@ function saveFest(weiter=false){
   const bw=CFG.bauwerke.find(x=>x.id===bwId);
   const faId=ge('fc-fa')?ge('fc-fa').value:'';
   const fa=CFG.feststellungsarten.find(x=>x.id===faId);
+  let anlIt=null;
+  if(b.typ==='anlagen'){
+    const al=anlListeMob(b);const nr=ge('fc-anl')?ge('fc-anl').value:'';
+    anlIt=al&&al.items.find(x=>String(x.nr)===String(nr));
+    if(!anlIt){toast('Bitte eine Anlage wählen');return;}
+  }
   const obj={
     id:cFestIdx!==null?(b.feststellungen[cFestIdx].id||uid('F')):uid('F'),
     lfd_nr:cFestIdx!==null?(b.feststellungen[cFestIdx].lfd_nr||cFestIdx+1):(b.feststellungen.length+1),
@@ -791,11 +845,12 @@ function saveFest(weiter=false){
     status:'offen',
     ts:new Date().toISOString(),
   };
+  if(anlIt){obj.anl_nr=anlIt.nr;obj.anl_text=anlIt.text;obj.bw_id='';obj.bw_name=anlLabel(anlIt);obj.bw_freitext='';obj.bauteil='';obj.bt_freitext='';}
   if(cFestIdx!==null){b.feststellungen[cFestIdx]=obj;}
   else{b.feststellungen.push(obj);}
   // Nur bei Neuerfassung: Bauwerk als Vorschlag für die nächste neue Feststellung merken
   // (bereits erfasste Feststellungen bleiben beim Bearbeiten unverändert)
-  if(wasNeu){b._lastBwId=obj.bw_id;b._lastBwFreitext=obj.bw_freitext;b._lastBt=obj.bauteil;}
+  if(wasNeu){b._lastBwId=obj.bw_id;b._lastBwFreitext=obj.bw_freitext;b._lastBt=obj.bauteil;if(anlIt)b._lastAnlNr=anlIt.nr;}
   saveD();
   if(weiter){
     // Modal offen lassen, neue Feststellung starten
@@ -1118,7 +1173,7 @@ function renderEinst(){
   if(info){
     const begs=(DATA.begehungen||[]).filter(b=>!b._done).length;
     const done=(DATA.begehungen||[]).filter(b=>b._done).length;
-    info.textContent=begs+' offene Begehungen · '+done+' abgeschlossen · Konfig: '+(DATA.konfig?'geladen':'Standard');
+    info.textContent=begs+' offene Begehungen · '+done+' abgeschlossen · Konfig: '+(DATA.konfig?'geladen':'Standard')+((DATA.anlagenlisten||[]).length?' · Anlagenlisten: '+DATA.anlagenlisten.map(l=>l.name).join(', '):'');
   }
 }
 
@@ -1284,6 +1339,19 @@ function mergeLokaleErgaenzungen(cloud,lokal){
   });
   return changed;
 }
+// Anlagenlisten: nur Desktop → Cloud → Handy (getrennte Datei, kollidiert nicht mit der Konfiguration)
+async function cloudAnlagenSync(){
+  try{
+    const hat=(await cloudList('config')).some(x=>x.name==='anlagenlisten.enc');
+    if(!hat)return;
+    const cloud=JSON.parse(await (await cloudDownload('config/anlagenlisten.enc')).text());
+    const ct=cloud&&cloud._updated||'';
+    if(ct&&ct>(DATA.anlagenStand||'')){
+      DATA.anlagenlisten=cloud.listen||[];DATA.anlagenStand=ct;saveD();
+      toast('✓ Anlagenliste(n) aus Cloud übernommen');
+    }
+  }catch(e){console.warn('Anlagenlisten:',e&&e.message);}
+}
 async function cloudConfigSync(silent){
   if(_cfgBusy)return;
   _cfgBusy=true;
@@ -1311,6 +1379,7 @@ async function cloudConfigSync(silent){
       await cloudUpload('config/begehung_config.enc',new Blob([JSON.stringify(mobKonfigPayload())],{type:'application/json'}),true);
       toast('✓ Konfiguration in die Cloud hochgeladen');
     }else if(!silent)toast('Konfiguration ist aktuell');
+    await cloudAnlagenSync();
   }catch(e){
     if(!silent)toast('Konfig-Abgleich: '+((e&&e.message)||e));
   }finally{_cfgBusy=false;}
