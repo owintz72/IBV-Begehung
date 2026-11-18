@@ -222,7 +222,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p31';
+const APP_VER='V1.0',PATCH='p32';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -888,9 +888,10 @@ function saveFest(weiter=false){
     beschreibung:ge('fc-desc')?ge('fc-desc').value.trim():'',
     foto_ids:pPics.map(p=>p.id||''),
     status:'offen',
-    ts:new Date().toISOString(),
+    ts:(cFestIdx!==null&&b.feststellungen[cFestIdx]&&b.feststellungen[cFestIdx].ts)||new Date().toISOString(),
+    ts_edit:new Date().toISOString(),
   };
-  if(anlIt){obj.anl_nr=anlIt.nr;obj.anl_text=anlIt.text;obj.bw_id='';obj.bw_name=anlLabel(anlIt);obj.bw_freitext='';obj.bauteil='';obj.bt_freitext='';obj.km_von=ge('fc-kmv')?ge('fc-kmv').value.trim():'';obj.km_bis=ge('fc-kmb')?ge('fc-kmb').value.trim():'';}
+  if(anlIt){obj.anl_nr=anlIt.nr;obj.anl_text=anlIt.text;obj.anl_dossier=anlIt.dossier||'';obj.bw_id='';obj.bw_name=anlLabel(anlIt);obj.bw_freitext='';obj.bauteil='';obj.bt_freitext='';obj.km_von=ge('fc-kmv')?ge('fc-kmv').value.trim():'';obj.km_bis=ge('fc-kmb')?ge('fc-kmb').value.trim():'';}
   if(cFestIdx!==null){b.feststellungen[cFestIdx]=obj;}
   else{b.feststellungen.push(obj);}
   // Nur bei Neuerfassung: Bauwerk als Vorschlag für die nächste neue Feststellung merken
@@ -914,56 +915,61 @@ function saveFest(weiter=false){
 // ═══════════════════════════════════════════
 // ABSCHLUSS + ZIP
 // ═══════════════════════════════════════════
-async function buildBegehungZip(b){
-  if(!window.JSZip){
-    ge('hd-title').textContent='ZIP wird erstellt…';
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+// Große Begehungen werden in Teile ≤ ca. 38 MB zerlegt (Cloud-Limit 50 MB je Datei)
+const TEIL_MAX=38*1048576;
+async function makePlan(b){
+  const sizes=[];
+  for(const f of(b.feststellungen||[])){
+    let sz=20000;
+    if(f.foto_ids&&f.foto_ids.length){for(const fid of f.foto_ids){const d=await getFotoIDB(fid);if(d)sz+=Math.round((d.length-d.indexOf(',')-1)*0.75);}}
+    else if(f.foto_data){f.foto_data.forEach(d=>{sz+=Math.round(d.length*0.75);});}
+    sizes.push(sz);
   }
+  const plan=[];let cur=[],cs=0;
+  sizes.forEach((sz,i)=>{if(cur.length&&cs+sz>TEIL_MAX){plan.push(cur);cur=[];cs=0;}cur.push(i);cs+=sz;});
+  if(cur.length)plan.push(cur);
+  if(!plan.length)plan.push([]);
+  return plan;
+}
+async function buildBegehungTeil(b,idxs,teil){
+  if(!window.JSZip)await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
   const zip=new JSZip();
-  // begehung.json ohne foto_data
   const bClean=JSON.parse(JSON.stringify(b));
-  (bClean.feststellungen||[]).forEach(f=>{delete f.foto_data;});
+  ['_cloudPlan','_cloudPaths','_cloudGroup','_planSig','_cloudErr'].forEach(k=>delete bClean[k]);
+  bClean.feststellungen=idxs.map(i=>{const f=JSON.parse(JSON.stringify(b.feststellungen[i]));delete f.foto_data;return f;});
+  if(teil)bClean._teil=teil;
   zip.file('begehung.json',JSON.stringify(bClean,null,2));
-  // Fotos
   const fotos=zip.folder('fotos');
   const now=new Date();
   const dateStr=(b.datum||td()).replace(/-/g,'');
   const timeStr=now.toTimeString().slice(0,5).replace(':','');
-  const fotoTimeStr=now.toTimeString().slice(0,8).replace(/:/g,'');
-  // Foto-Dateiname: S{festIdx}_F{fotoNr} — Feststellungs-Zuordnung bleibt erhalten
-  for(let fi=0;fi<(b.feststellungen||[]).length;fi++){
+  const fotoTimeStr=(b._fotoZeit||(b._fotoZeit=now.toTimeString().slice(0,8).replace(/:/g,'')));
+  for(const fi of idxs){
     const f=b.feststellungen[fi];
     const fotoSrcs=[];
-    if(f.foto_ids&&f.foto_ids.length){
-      for(const fid of f.foto_ids){
-        const d=await getFotoIDB(fid);if(d)fotoSrcs.push(d);
-      }
-    } else if(f.foto_data){
-      fotoSrcs.push(...f.foto_data);
-    }
+    if(f.foto_ids&&f.foto_ids.length){for(const fid of f.foto_ids){const d=await getFotoIDB(fid);if(d)fotoSrcs.push(d);}}
+    else if(f.foto_data){fotoSrcs.push(...f.foto_data);}
     let fotoNr=1;
     for(const dataUrl of fotoSrcs){
-      const base64=dataUrl.split(',')[1];
-      // Format: JJJJMMTT_HHMMSS_S01_F01.jpg (S=Feststellung, F=Foto innerhalb)
       const sIdx=String(fi+1).padStart(2,'0');
       const fNr=String(fotoNr).padStart(2,'0');
-      fotos.file(`${dateStr}_${fotoTimeStr}_S${sIdx}_F${fNr}.jpg`,base64,{base64:true});
+      fotos.file(`${dateStr}_${fotoTimeStr}_S${sIdx}_F${fNr}.jpg`,dataUrl.split(',')[1],{base64:true});
       fotoNr++;
     }
   }
   const blob=await zip.generateAsync({type:'blob'});
   const uhrZip=(b.uhrzeit||timeStr).replace(':','');
   const ktZip=slugifyMob((b.e2_such_id||'')+'_'+(b.proj_kurztext||''))||'ohne_projekt';
-  const fn=`${dateStr}_${uhrZip}_${ktZip}_begehung.zip`;
+  const fn=`${dateStr}_${uhrZip}_${ktZip}_begehung`+(teil?`_T${teil.n}v${teil.von}_G${teil.gruppe}`:'')+'.zip';
   return{blob,fn};
 }
 
 function sentSig(b){
   const f=b.feststellungen||[];
-  return f.length+'|'+f.reduce((m,x)=>((x.ts||'')>m?(x.ts||''):m),'')+'|'+(b.ort||'')+'|'+(b.teilnehmer||'')+'|'+(b.datum||'')+'|'+(b.uhrzeit||'');
+  return f.length+'|'+f.reduce((m,x)=>{const t=x.ts_edit||x.ts||'';return t>m?t:m;},'')+'|'+(b.ort||'')+'|'+(b.teilnehmer||'')+'|'+(b.datum||'')+'|'+(b.uhrzeit||'');
 }
 function cloudPathFor(fn){return 'inbox/'+_cSafe(fn.replace(/\.zip$/,''))+'_'+Date.now().toString(36)+'.zip.enc';}
-function markSent(b,path){b._cloud='sent';b._cloudPath=path;b._sentSig=sentSig(b);b._done=true;saveD();}
+function markSent(b,path){b._cloud='sent';b._cloudPath=path;if(!b._cloudPaths||!b._cloudPaths.length)b._cloudPaths=[path];delete b._cloudPlan;delete b._planSig;delete b._cloudGroup;b._sentSig=sentSig(b);b._done=true;saveD();}
 async function abschliessen(bid){
   const b=DATA.begehungen.find(x=>x.id===bid);if(!b)return;
   if(!cloudConfigured()){toast('Bitte erst unter Einstellungen bei der Cloud anmelden');return;}
@@ -990,19 +996,34 @@ const _up={};   // Begehungs-ID -> {busy,phase,loaded,total,att,err}
 const SB_LIMIT_MB=50;
 function upBusy(id){return !!(_up[id]&&_up[id].busy);}
 function fmtMB(n){return(n/1048576).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1});}
+function upParts(b){
+  const plan=b._cloudPlan;if(!plan||plan.length<2)return'';
+  const u=_up[b.id]||{};const paths=b._cloudPaths||[];
+  return'<div style="font-size:11px;color:var(--tx2);margin-top:5px;line-height:1.55">'+plan.map((_,i)=>{
+    const done=!!paths[i],run=u.busy&&u.part===i;
+    return'Teil '+(i+1)+' – '+(done?'<span style="color:var(--ok)">✓ hochgeladen</span>':run?'<span style="color:var(--ac)">⏫ läuft</span>':'wartet');
+  }).join('<br>')+'</div>';
+}
 function upInner(b){
   const u=_up[b.id]||{};
+  const mehr=b._cloudPlan&&b._cloudPlan.length>1;
+  const teilTxt=mehr?'Teil '+((u.part||0)+1)+' von '+b._cloudPlan.length+' · ':'';
   if(u.busy){
-    if(u.phase==='zip')return'<div style="font-size:12px;color:var(--tx2)">📦 ZIP wird erstellt …</div>';
-    if(u.phase==='enc')return'<div style="font-size:12px;color:var(--tx2)">🔒 Wird verschlüsselt …</div>';
-    if(u.phase==='retry')return'<div style="font-size:12px;color:#b8860b">↻ '+esc(u.err||'Verbindung unterbrochen')+' – neuer Versuch …</div>';
-    const pct=u.total?Math.min(100,Math.round(u.loaded/u.total*100)):0;
-    return'<div style="font-size:12px;color:var(--tx);margin-bottom:3px">'+fmtMB(u.loaded||0)+' von '+fmtMB(u.total||0)+' MB hochgeladen · '+pct+' %'+(u.att>1?' · Versuch '+u.att+'/3':'')+'</div>'
-      +'<div style="height:8px;background:var(--sf2);border:1px solid var(--bd);border-radius:5px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--ac);transition:width .2s"></div></div>';
+    let h;
+    if(u.phase==='zip')h='<div style="font-size:12px;color:var(--tx2)">📦 '+teilTxt+'ZIP wird erstellt …</div>';
+    else if(u.phase==='enc')h='<div style="font-size:12px;color:var(--tx2)">🔒 '+teilTxt+'Wird verschlüsselt …</div>';
+    else if(u.phase==='retry')h='<div style="font-size:12px;color:#b8860b">↻ '+esc(u.err||'Verbindung unterbrochen')+' – neuer Versuch …</div>';
+    else{
+      const pct=u.total?Math.min(100,Math.round(u.loaded/u.total*100)):0;
+      h='<div style="font-size:12px;color:var(--tx);margin-bottom:3px">'+teilTxt+fmtMB(u.loaded||0)+' von '+fmtMB(u.total||0)+' MB hochgeladen · '+pct+' %'+(u.att>1?' · Versuch '+u.att+'/3':'')+'</div>'
+        +'<div style="height:8px;background:var(--sf2);border:1px solid var(--bd);border-radius:5px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--ac);transition:width .2s"></div></div>';
+    }
+    return h+upParts(b);
   }
   let h='';
   if(b._cloudErr)h+='<div style="font-size:12px;color:var(--red);margin-bottom:6px">⚠ '+esc(b._cloudErr)+'</div>';
-  h+='<button class="btn bs" style="padding:8px 12px;font-size:13px" onclick="begUploadNow(\''+b.id+'\')">'+(b._cloudErr?'↻ Erneut versuchen':'☁ Jetzt hochladen')+'</button>';
+  h+=upParts(b);
+  h+='<button class="btn bs" style="padding:8px 12px;font-size:13px;margin-top:6px" onclick="begUploadNow(\''+b.id+'\')">'+(b._cloudErr||mehr?'↻ Erneut versuchen':'☁ Jetzt hochladen')+'</button>';
   return h;
 }
 function upRefresh(id){
@@ -1039,38 +1060,52 @@ function cloudUploadProg(path,blob,onProg){
     }catch(e){reject(e);}
   });
 }
-async function begUpload(b,pre){
+async function begUpload(b){
   const id=b.id;if(upBusy(id))return false;
-  _up[id]={busy:true,phase:'zip',loaded:0,total:0,att:1};upRefresh(id);
+  _up[id]={busy:true,phase:'zip',loaded:0,total:0,att:1,part:0};upRefresh(id);
   try{
     if(!navigator.onLine)throw new Error('keine Verbindung');
-    const{blob,fn}=pre||await buildBegehungZip(b);
-    _up[id].phase='enc';upRefresh(id);
-    const enc=await cloudEncrypt(blob);
-    const total=enc.size;
-    if(total>SB_LIMIT_MB*1048576){const er=new Error('zu groß');er.status=413;er.noRetry=true;throw er;}
-    const path=cloudPathFor(fn);
-    for(let att=1;att<=3;att++){
-      try{
-        Object.assign(_up[id],{phase:'up',loaded:0,total,att});upRefresh(id);
+    const sig=sentSig(b);
+    if(!b._cloudPlan||b._planSig!==sig){
+      // neu oder nach Änderung: bereits hochgeladene Teile einer alten Planung verwerfen
+      for(const pp of(b._cloudPaths||[]))if(pp){try{await cloudRemove(pp);}catch(e){}}
+      b._cloudPlan=await makePlan(b);b._cloudPaths=b._cloudPlan.map(()=>'');
+      b._cloudGroup=Date.now().toString(36);b._planSig=sig;saveD();
+    }
+    const plan=b._cloudPlan,von=plan.length;
+    for(let i=0;i<von;i++){
+      if(b._cloudPaths[i])continue;
+      Object.assign(_up[id],{part:i,phase:'zip',loaded:0,total:0,att:1});upRefresh(id);
+      const{blob,fn}=await buildBegehungTeil(b,plan[i],von>1?{n:i+1,von,gruppe:b._cloudGroup}:null);
+      _up[id].phase='enc';upRefresh(id);
+      const enc=await cloudEncrypt(blob);
+      const total=enc.size;
+      if(total>SB_LIMIT_MB*1048576){const er=new Error('zu groß');er.status=413;er.noRetry=true;throw er;}
+      const path=cloudPathFor(fn);
+      for(let att=1;att<=3;att++){
         try{
-          await cloudUploadProg(path,enc,(l,t)=>{_up[id].loaded=l;_up[id].total=t||total;upRefresh(id);});
+          Object.assign(_up[id],{phase:'up',loaded:0,total,att});upRefresh(id);
+          try{
+            await cloudUploadProg(path,enc,(l,t)=>{_up[id].loaded=l;_up[id].total=t||total;upRefresh(id);});
+          }catch(e){
+            if(e&&e.server&&e.status!==401&&e.status!==403&&e.status!==413){ // Sicherheitsnetz: Upload ohne Fortschritt
+              const sb=await sbClient(),u=await cloudUser();
+              const{error}=await sb.storage.from(SB_BUCKET).upload(u.id+'/'+path,enc,{upsert:true,cacheControl:'0',contentType:'application/octet-stream'});
+              if(error)throw error;
+            }else throw e;
+          }
+          b._cloudPaths[i]=path;saveD();upRefresh(id);
+          break;
         }catch(e){
-          if(e&&e.server&&e.status!==401&&e.status!==403&&e.status!==413){ // Sicherheitsnetz: bisheriger Upload ohne Fortschritt
-            const sb=await sbClient(),u=await cloudUser();
-            const{error}=await sb.storage.from(SB_BUCKET).upload(u.id+'/'+path,enc,{upsert:true,cacheControl:'0',contentType:'application/octet-stream'});
-            if(error)throw error;
-          }else throw e;
+          if(e&&(e.noRetry||e.status===401||e.status===403||e.status===413)||att===3)throw e;
+          Object.assign(_up[id],{phase:'retry',err:upErrText(e).replace(/^Upload abgebrochen: /,'')});upRefresh(id);
+          await new Promise(r=>setTimeout(r,att*3000));
         }
-        markSent(b,path);b._cloudErr='';saveD();
-        _up[id]={busy:false};renderUe();
-        return true;
-      }catch(e){
-        if(e&&(e.noRetry||e.status===401||e.status===403||e.status===413)||att===3)throw e;
-        Object.assign(_up[id],{phase:'retry',err:upErrText(e).replace(/^Upload abgebrochen: /,'')});upRefresh(id);
-        await new Promise(r=>setTimeout(r,att*3000));
       }
     }
+    markSent(b,b._cloudPaths[0]);b._cloudErr='';saveD();
+    _up[id]={busy:false};renderUe();
+    return true;
   }catch(e){
     console.warn('Upload fehlgeschlagen:',e&&e.message);
     b._cloudErr=upErrText(e);saveD();
@@ -1110,7 +1145,7 @@ async function cloudCleanupSent(){
     const names=new Set((await cloudList('inbox')).map(x=>x.name));
     let n=0;
     for(const b of cand){
-      if(names.has(b._cloudPath.split('/').pop()))continue; // noch nicht abgerufen
+      if((b._cloudPaths&&b._cloudPaths.length?b._cloudPaths:[b._cloudPath]).some(pp=>pp&&names.has(pp.split('/').pop())))continue; // noch nicht abgerufen
       if(b._sentSig!==sentSig(b)){b._cloudPath=null;saveD();continue;} // nach dem Senden geändert: behalten
       for(const f of (b.feststellungen||[])){for(const fid of (f.foto_ids||[])){try{await delFotoIDB(fid);}catch(e){}}}
       DATA.begehungen=DATA.begehungen.filter(x=>x.id!==b.id);
