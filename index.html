@@ -222,7 +222,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p30';
+const APP_VER='V1.0',PATCH='p31';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -461,8 +461,9 @@ function renderUe(){
       </div>
       <div class="bif">
         <div class="bt">${b.e2_such_id?esc(b.e2_such_id+(b.proj_kurztext?' – '+b.proj_kurztext:'')):'<span style="color:var(--tx2)">'+esc(mobKennzeichnung(b))+'</span>'}</div>
-        <div class="bs2">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit:''} ${b._cloud==='pending'?'· <span style="color:#b8860b">⏳ wartet auf Upload</span>':b._cloud==='sent'?'· <span style="color:var(--ok)">✓ In Cloud</span>':b._done?'· <span style="color:var(--ok)">✓ Gesendet</span>':''}</div>
+        <div class="bs2">${fD(b.datum)}${b.uhrzeit?' · '+b.uhrzeit:''} ${b._cloud==='pending'?(upBusy(b.id)?'· <span style="color:var(--ac)">⏫ Upload läuft</span>':'· <span style="color:#b8860b">⏳ wartet auf Upload</span>'):b._cloud==='sent'?'· <span style="color:var(--ok)">✓ In Cloud</span>':b._done?'· <span style="color:var(--ok)">✓ Gesendet</span>':''}</div>
         <div class="bs2" style="margin-top:1px">${esc(b.ort||'Ort nicht angegeben')} · ${nF} Feststellung${nF!==1?'en':''}</div>
+        ${b._cloud==='pending'?`<div id="upst-${b.id}" style="margin-top:6px" onclick="event.stopPropagation()">${upInner(b)}</div>`:''}
       </div>
       ${(b._done&&b._cloud!=='pending'&&!b._cloudPath)?`<button class="btn bs" style="padding:8px 10px;font-size:16px" aria-label="Begehung löschen" onclick="event.stopPropagation();begLoeschen('${b.id}')">🗑</button>`:''}
       <span style="color:var(--tx2);font-size:20px">›</span>
@@ -967,19 +968,14 @@ async function abschliessen(bid){
   const b=DATA.begehungen.find(x=>x.id===bid);if(!b)return;
   if(!cloudConfigured()){toast('Bitte erst unter Einstellungen bei der Cloud anmelden');return;}
   toast('Begehung wird gespeichert…');
-  const{blob,fn}=await buildBegehungZip(b);
-  // Ende-zu-Ende-verschlüsselt in die Cloud. Ohne Netz oder bei Fehler: vormerken, automatischer Upload sobald online.
+  // Erst vormerken (geht nichts verloren), dann Ende-zu-Ende-verschlüsselt mit Fortschrittsanzeige hochladen.
+  b._cloud='pending';b._done=true;b._cloudErr='';saveD();renderUe();nav('ue');
   if(navigator.onLine&&await cloudReady()){
-    try{
-      toast('Upload in die Cloud…');
-      const path=cloudPathFor(fn);
-      await cloudUpload(path,blob,false);
-      markSent(b,path);renderUe();nav('ue');
-      toast('✓ In Cloud hochgeladen (verschlüsselt)');
-      return;
-    }catch(e){console.warn('Cloud-Upload fehlgeschlagen:',e&&e.message);}
+    const ok=await begUpload(b);
+    if(ok){toast('✓ In Cloud hochgeladen (verschlüsselt)');return;}
+    toast('Upload nicht abgeschlossen – Details an der Begehung');
+    return;
   }
-  b._cloud='pending';b._done=true;saveD();renderUe();nav('ue');
   toast('Kein Netz: gespeichert – wird automatisch hochgeladen, sobald wieder online');
 }
 
@@ -989,6 +985,105 @@ function slugifyMob(text){var t=(text||'').replace(/[\s]+/g,'_');t=t.replace(/[<
 
 // ── Cloud-Outbox: vorgemerkte Begehungen automatisch hochladen, sobald online
 let _cloudSyncing=false;
+// ── Upload mit Fortschritt (XHR), 3 Versuche, Fehler im Klartext an der Karte
+const _up={};   // Begehungs-ID -> {busy,phase,loaded,total,att,err}
+const SB_LIMIT_MB=50;
+function upBusy(id){return !!(_up[id]&&_up[id].busy);}
+function fmtMB(n){return(n/1048576).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1});}
+function upInner(b){
+  const u=_up[b.id]||{};
+  if(u.busy){
+    if(u.phase==='zip')return'<div style="font-size:12px;color:var(--tx2)">📦 ZIP wird erstellt …</div>';
+    if(u.phase==='enc')return'<div style="font-size:12px;color:var(--tx2)">🔒 Wird verschlüsselt …</div>';
+    if(u.phase==='retry')return'<div style="font-size:12px;color:#b8860b">↻ '+esc(u.err||'Verbindung unterbrochen')+' – neuer Versuch …</div>';
+    const pct=u.total?Math.min(100,Math.round(u.loaded/u.total*100)):0;
+    return'<div style="font-size:12px;color:var(--tx);margin-bottom:3px">'+fmtMB(u.loaded||0)+' von '+fmtMB(u.total||0)+' MB hochgeladen · '+pct+' %'+(u.att>1?' · Versuch '+u.att+'/3':'')+'</div>'
+      +'<div style="height:8px;background:var(--sf2);border:1px solid var(--bd);border-radius:5px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--ac);transition:width .2s"></div></div>';
+  }
+  let h='';
+  if(b._cloudErr)h+='<div style="font-size:12px;color:var(--red);margin-bottom:6px">⚠ '+esc(b._cloudErr)+'</div>';
+  h+='<button class="btn bs" style="padding:8px 12px;font-size:13px" onclick="begUploadNow(\''+b.id+'\')">'+(b._cloudErr?'↻ Erneut versuchen':'☁ Jetzt hochladen')+'</button>';
+  return h;
+}
+function upRefresh(id){
+  const el=ge('upst-'+id);const b=(DATA.begehungen||[]).find(x=>x.id===id);
+  if(el&&b)el.innerHTML=upInner(b);
+}
+function upErrText(e){
+  const m=String((e&&e.message)||e||'');
+  if(e&&e.status===401||e&&e.status===403)return'Upload abgebrochen: Anmeldung abgelaufen – bitte unter Einstellungen neu anmelden';
+  if(e&&e.status===413||/exceeded the maximum|too large|payload/i.test(m))return'Upload abgebrochen: Begehung zu groß für die Cloud (Limit '+SB_LIMIT_MB+' MB)';
+  if(/keine Verbindung|Failed to fetch|NetworkError|Load failed/i.test(m))return'Upload abgebrochen: keine Verbindung';
+  return'Upload abgebrochen: '+m;
+}
+function cloudUploadProg(path,blob,onProg){
+  return new Promise(async(resolve,reject)=>{
+    try{
+      const sb=await sbClient();const{data}=await sb.auth.getSession();
+      if(!data||!data.session)return reject(new Error('Nicht angemeldet'));
+      const uid=data.session.user.id,token=data.session.access_token;
+      const fd=new FormData();fd.append('cacheControl','0');fd.append('',blob);
+      const x=new XMLHttpRequest();
+      x.open('POST',SB_URL+'/storage/v1/object/'+SB_BUCKET+'/'+uid+'/'+path.split('/').map(encodeURIComponent).join('/'));
+      x.setRequestHeader('Authorization','Bearer '+token);
+      x.setRequestHeader('apikey',SB_KEY);
+      x.setRequestHeader('x-upsert','true');
+      x.upload.onprogress=e=>{if(e.lengthComputable)onProg(e.loaded,e.total);};
+      x.onload=()=>{
+        if(x.status>=200&&x.status<300)return resolve();
+        const er=new Error('Server '+x.status+' '+String(x.responseText||'').slice(0,120));er.status=x.status;er.server=true;reject(er);
+      };
+      x.onerror=()=>reject(new Error('keine Verbindung'));
+      x.onabort=()=>reject(new Error('keine Verbindung'));
+      x.send(fd);
+    }catch(e){reject(e);}
+  });
+}
+async function begUpload(b,pre){
+  const id=b.id;if(upBusy(id))return false;
+  _up[id]={busy:true,phase:'zip',loaded:0,total:0,att:1};upRefresh(id);
+  try{
+    if(!navigator.onLine)throw new Error('keine Verbindung');
+    const{blob,fn}=pre||await buildBegehungZip(b);
+    _up[id].phase='enc';upRefresh(id);
+    const enc=await cloudEncrypt(blob);
+    const total=enc.size;
+    if(total>SB_LIMIT_MB*1048576){const er=new Error('zu groß');er.status=413;er.noRetry=true;throw er;}
+    const path=cloudPathFor(fn);
+    for(let att=1;att<=3;att++){
+      try{
+        Object.assign(_up[id],{phase:'up',loaded:0,total,att});upRefresh(id);
+        try{
+          await cloudUploadProg(path,enc,(l,t)=>{_up[id].loaded=l;_up[id].total=t||total;upRefresh(id);});
+        }catch(e){
+          if(e&&e.server&&e.status!==401&&e.status!==403&&e.status!==413){ // Sicherheitsnetz: bisheriger Upload ohne Fortschritt
+            const sb=await sbClient(),u=await cloudUser();
+            const{error}=await sb.storage.from(SB_BUCKET).upload(u.id+'/'+path,enc,{upsert:true,cacheControl:'0',contentType:'application/octet-stream'});
+            if(error)throw error;
+          }else throw e;
+        }
+        markSent(b,path);b._cloudErr='';saveD();
+        _up[id]={busy:false};renderUe();
+        return true;
+      }catch(e){
+        if(e&&(e.noRetry||e.status===401||e.status===403||e.status===413)||att===3)throw e;
+        Object.assign(_up[id],{phase:'retry',err:upErrText(e).replace(/^Upload abgebrochen: /,'')});upRefresh(id);
+        await new Promise(r=>setTimeout(r,att*3000));
+      }
+    }
+  }catch(e){
+    console.warn('Upload fehlgeschlagen:',e&&e.message);
+    b._cloudErr=upErrText(e);saveD();
+    _up[id]={busy:false};renderUe();
+    return false;
+  }
+}
+async function begUploadNow(id){
+  const b=DATA.begehungen.find(x=>x.id===id);if(!b||upBusy(id))return;
+  if(!cloudConfigured()||!(await cloudReady())){b._cloudErr='Nicht bei der Cloud angemeldet – bitte unter Einstellungen anmelden';saveD();renderUe();return;}
+  const ok=await begUpload(b);
+  if(ok)toast('✓ In Cloud hochgeladen (verschlüsselt)');
+}
 async function cloudSyncPending(){
   if(_cloudSyncing||!navigator.onLine)return;
   const pend=(DATA.begehungen||[]).filter(b=>b._cloud==='pending');
@@ -997,13 +1092,9 @@ async function cloudSyncPending(){
   _cloudSyncing=true;
   try{
     for(const b of pend){
-      try{
-        const{blob,fn}=await buildBegehungZip(b);
-        const path=cloudPathFor(fn);
-        await cloudUpload(path,blob,false);
-        markSent(b,path);renderUe();
-        toast('☁ Hochgeladen: '+(b.e2_such_id||mobKennzeichnung(b)));
-      }catch(e){console.warn('Sync später erneut:',e&&e.message);break;}
+      const ok=await begUpload(b);
+      if(ok)toast('☁ Hochgeladen: '+(b.e2_such_id||mobKennzeichnung(b)));
+      else break;
     }
   }finally{_cloudSyncing=false;}
 }
