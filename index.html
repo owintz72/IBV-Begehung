@@ -222,7 +222,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 // ═══════════════════════════════════════════
 // KONSTANTEN
 // ═══════════════════════════════════════════
-const APP_VER='V1.0',PATCH='p32';
+const APP_VER='V1.0',PATCH='p33';
 const SK='ibv_bp_mobile_v1';
 const IDB_NAME='ibv_bp_mobile_handles';
 const IDB_STORE='handles';
@@ -915,8 +915,8 @@ function saveFest(weiter=false){
 // ═══════════════════════════════════════════
 // ABSCHLUSS + ZIP
 // ═══════════════════════════════════════════
-// Große Begehungen werden in Teile ≤ ca. 38 MB zerlegt (Cloud-Limit 50 MB je Datei)
-const TEIL_MAX=38*1048576;
+// Große Begehungen werden in Teile ≤ ca. 15 MB zerlegt (Cloud-Limit 50 MB je Datei)
+const TEIL_MAX=15*1048576;
 async function makePlan(b){
   const sizes=[];
   for(const f of(b.feststellungen||[])){
@@ -995,6 +995,14 @@ let _cloudSyncing=false;
 const _up={};   // Begehungs-ID -> {busy,phase,loaded,total,att,err}
 const SB_LIMIT_MB=50;
 function upBusy(id){return !!(_up[id]&&_up[id].busy);}
+let _wl=null;
+async function wlHold(){try{if(navigator.wakeLock&&!_wl){_wl=await navigator.wakeLock.request('screen');_wl.addEventListener('release',()=>{_wl=null;});}}catch(e){_wl=null;}}
+function wlFree(){try{if(_wl){_wl.release();}}catch(e){}_wl=null;}
+function anyUpBusy(){return Object.keys(_up).some(k=>_up[k]&&_up[k].busy);}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'){Object.keys(_up).forEach(k=>{if(_up[k]&&_up[k].busy)_up[k].hidden=true;});}
+  else if(anyUpBusy())wlHold();   // Wake Lock geht beim Ausblenden verloren → neu anfordern
+});
 function fmtMB(n){return(n/1048576).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1});}
 function upParts(b){
   const plan=b._cloudPlan;if(!plan||plan.length<2)return'';
@@ -1018,7 +1026,7 @@ function upInner(b){
       h='<div style="font-size:12px;color:var(--tx);margin-bottom:3px">'+teilTxt+fmtMB(u.loaded||0)+' von '+fmtMB(u.total||0)+' MB hochgeladen · '+pct+' %'+(u.att>1?' · Versuch '+u.att+'/3':'')+'</div>'
         +'<div style="height:8px;background:var(--sf2);border:1px solid var(--bd);border-radius:5px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--ac);transition:width .2s"></div></div>';
     }
-    return h+upParts(b);
+    return h+upParts(b)+'<div style="font-size:11px;color:#b8860b;margin-top:6px">📱 Bildschirm anlassen, App nicht wechseln</div>';
   }
   let h='';
   if(b._cloudErr)h+='<div style="font-size:12px;color:var(--red);margin-bottom:6px">⚠ '+esc(b._cloudErr)+'</div>';
@@ -1063,6 +1071,7 @@ function cloudUploadProg(path,blob,onProg){
 async function begUpload(b){
   const id=b.id;if(upBusy(id))return false;
   _up[id]={busy:true,phase:'zip',loaded:0,total:0,att:1,part:0};upRefresh(id);
+  wlHold();
   try{
     if(!navigator.onLine)throw new Error('keine Verbindung');
     const sig=sentSig(b);
@@ -1104,12 +1113,13 @@ async function begUpload(b){
       }
     }
     markSent(b,b._cloudPaths[0]);b._cloudErr='';saveD();
-    _up[id]={busy:false};renderUe();
+    _up[id]={busy:false};if(!anyUpBusy())wlFree();renderUe();
     return true;
   }catch(e){
     console.warn('Upload fehlgeschlagen:',e&&e.message);
-    b._cloudErr=upErrText(e);saveD();
-    _up[id]={busy:false};renderUe();
+    const unterbr=_up[id]&&_up[id].hidden&&/keine Verbindung|Failed to fetch|NetworkError|Load failed/i.test(String((e&&e.message)||e));
+    b._cloudErr=unterbr?'Upload unterbrochen (Bildschirm gesperrt oder App gewechselt?) – fertige Teile bleiben erhalten':upErrText(e);saveD();
+    _up[id]={busy:false};if(!anyUpBusy())wlFree();renderUe();
     return false;
   }
 }
@@ -1127,6 +1137,7 @@ async function cloudSyncPending(){
   _cloudSyncing=true;
   try{
     for(const b of pend){
+      if((b._cloudPaths||[]).some(x=>x))toast('Upload wird fortgesetzt …');
       const ok=await begUpload(b);
       if(ok)toast('☁ Hochgeladen: '+(b.e2_such_id||mobKennzeichnung(b)));
       else break;
